@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"backend.chesswahili.com/internal/data"
 	"backend.chesswahili.com/internal/jsonlog"
 	"backend.chesswahili.com/internal/mailer"
 	_ "github.com/lib/pq"

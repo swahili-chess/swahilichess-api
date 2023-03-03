@@ -3,6 +3,7 @@ module backend.chesswahili.com
 go 1.20
 
 require (
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/json-iterator/go v1.1.10 // indirect
 	github.com/julienschmidt/httprouter v1.3.0 // indirect
