@@ -1,0 +1,62 @@
+name: Go Test Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+ 
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.19.2
+      
+    - name: Test
+      run: go test -v ./...
+      
+    - name: Build
+      run: go build -v -o sw-backend ./cmd/api
+
+    - uses: actions/upload-artifact@v3
+      with:
+          name: sw-artifact
+          path: ./sw-backend
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+        with:
+          name: sw-artifact
+      - name: Deploy to server
+        uses: appleboy/scp-action@master
+        with:
+           host: ${{ secrets.HOST }}
+           username: ${{ secrets.USERNAME }}
+           password: ${{ secrets.PASSWORD }}
+           port: ${{ secrets.PORT }}
+           source: ./sw-backend
+           target: "/home/${{ secrets.USERNAME }}/sw-backend"
+
+      - name: Start Chesswahili Backend service and Reload Nginx
+        uses: appleboy/ssh-action@master
+        with:
+           host: ${{ secrets.HOST }}
+           username: ${{ secrets.USERNAME }}
+           password: ${{ secrets.PASSWORD }}
+           port: ${{ secrets.PORT }}
+           script: |
+               cd /home/${{ secrets.USERNAME }}/sw-backend
+               chmod +x sw-backend
+               echo ${{ secrets.PASSWORD }} | sudo -S systemctl stop sw-backend.service 
+               echo ${{ secrets.PASSWORD }} | sudo -S systemctl start sw-backend.service 
+               echo ${{ secrets.PASSWORD }} | sudo -S systemctl reload nginx
+
+ 
