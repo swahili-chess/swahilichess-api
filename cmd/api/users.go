@@ -13,7 +13,7 @@ import (
 func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	var input struct {
-		Username     string `json:"username"`
+		Username string `json:"username"`
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
@@ -25,7 +25,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	user := &data.User{
-		Username:      input.Username,
+		Username:  input.Username,
 		Email:     input.Email,
 		Activated: false,
 	}
@@ -50,23 +50,26 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		case errors.Is(err, data.ErrDuplicateEmail):
 			v.AddError("email", "a user with this email address already exists")
 			app.failedValidationResponse(w, r, v.Errors)
+		case errors.Is(err, data.ErrDuplicateUsername):
+			v.AddError("username", "a user with this username already exists")
+			app.failedValidationResponse(w, r, v.Errors)
 		default:
 			app.serverErrorResponse(w, r, err)
 		}
 		return
 	}
 
-	token, err := app.models.Tokens.New(user.ID, 3*24*time.Hour, data.ScopeActivation)
+	token, err := app.models.Tokens.New(user.UUID, 3*24*time.Hour, data.ScopeActivation)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
 	app.background(func() {
-		name := strings.Split(user.Name, " ")[0]
+		name := strings.Split(user.Username, " ")[0]
 		data := map[string]interface{}{
 			"activationToken": token.Plaintext,
-			"userID":          user.ID,
+			"userID":          user.UUID,
 			"Name":            name,
 		}
 
@@ -124,7 +127,7 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	err = app.models.Tokens.DeleteAllForUser(data.ScopeActivation, user.ID)
+	err = app.models.Tokens.DeleteAllForUser(data.ScopeActivation, user.UUID)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return

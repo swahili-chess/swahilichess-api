@@ -21,7 +21,7 @@ var (
 var AnonymousUser = &User{}
 
 type User struct {
-	Uuid      string    `json:"uuid"`
+	UUID      string    `json:"uuid"`
 	Username  string    `json:"username"`
 	CreatedAt time.Time `json:"created_at"`
 	FirstName string    `json:"first_name"`
@@ -107,7 +107,7 @@ func (m UserModel) Insert(user *User) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.Uuid, &user.CreatedAt, &user.Version)
+	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.UUID, &user.CreatedAt, &user.Version)
 	if err != nil {
 		switch {
 		case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"`:
@@ -131,7 +131,7 @@ WHERE email = $1`
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	err := m.DB.QueryRowContext(ctx, query, email).Scan(
-		&user.Uuid,
+		&user.UUID,
 		&user.CreatedAt,
 		&user.Username,
 		&user.Email,
@@ -159,7 +159,7 @@ WHERE username = $1`
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	err := m.DB.QueryRowContext(ctx, query, username).Scan(
-		&user.Uuid,
+		&user.UUID,
 		&user.CreatedAt,
 		&user.Username,
 		&user.Email,
@@ -218,7 +218,7 @@ func (m UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error)
 	SELECT users.uuid, users.created_at, users.username, users.email, users.password_hash, users.activated, users.version
 	FROM users
 	INNER JOIN tokens
-	ON users.uuid = tokens.user_uuid
+	ON users.uuid = tokens.uuid
 	WHERE tokens.hash = $1
 	AND tokens.scope = $2
 	AND tokens.expiry > $3`
@@ -229,7 +229,7 @@ func (m UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error)
 	defer cancel()
 
 	err := m.DB.QueryRowContext(ctx, query, args...).Scan(
-		&user.Uuid,
+		&user.UUID,
 		&user.CreatedAt,
 		&user.Username,
 		&user.Email,
