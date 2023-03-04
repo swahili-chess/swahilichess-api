@@ -121,7 +121,6 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 		case errors.Is(err, data.ErrEditConflict):
 			app.editConflictResponse(w, r)
 		default:
-			app.logger.PrintInfo("I made it here", nil)
 			app.serverErrorResponse(w, r, err)
 		}
 		return
