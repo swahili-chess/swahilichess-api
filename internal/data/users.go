@@ -72,7 +72,7 @@ func ValidateEmail(v *validator.Validator, email string) {
 
 func ValidateUsername(v *validator.Validator, username string) {
 	v.Check(username != "", "username", "must be provided")
-	v.Check(len(username) >= 3, "username", "must be at least 8 bytes long")
+	v.Check(len(username) >= 3, "username", "must be at least 3 bytes long")
 	v.Check(len(username) <= 15, "username", "must not be more than 15 bytes long")
 }
 func ValidatePasswordPlaintext(v *validator.Validator, password string) {
