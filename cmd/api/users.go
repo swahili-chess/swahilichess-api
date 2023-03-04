@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	"backend.chesswahili.com/internal/data"
