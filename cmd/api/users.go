@@ -66,7 +66,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	app.background(func() {
-		name := strings.Split(user.Username, " ")[0]
+		name := user.Username
 		data := map[string]interface{}{
 			"activationToken": token.Plaintext,
 			"userID":          user.UUID,
