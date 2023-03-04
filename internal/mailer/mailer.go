@@ -44,7 +44,7 @@ func (m Mailer) Send(recipient, templateFile string, data interface{}) error {
 
 	body := htmlBody.String()
 
-	subject := "Lebena Api Registration"
+	subject := "Chesswahili Registration"
 
 	message := m.mg.NewMessage(m.sender, subject, "", recipient)
 
