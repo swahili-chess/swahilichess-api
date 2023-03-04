@@ -102,7 +102,7 @@ func (m UserModel) Insert(user *User) error {
 	query := `
 	INSERT INTO users (uuid , username, email, password_hash, activated)
 	VALUES ($1, $2, $3, $4 ,$5)
-	RETURNING id, created_at, version`
+	RETURNING uuid, created_at, version`
 	args := []interface{}{"uuid_generate_v4()", user.Username, user.Email, user.Password.hash, user.Activated}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
