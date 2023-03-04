@@ -191,7 +191,7 @@ RETURNING version`
 		user.Email,
 		user.Password.hash,
 		user.Activated,
-		user.Username,
+		user.UUID,
 		user.Version,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
