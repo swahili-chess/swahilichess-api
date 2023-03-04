@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"backend.chesswahili.com/internal/validator"
@@ -99,11 +100,12 @@ type UserModel struct {
 
 // uuid_generate_v4()
 func (m UserModel) Insert(user *User) error {
-	query := `
+	query := fmt.Sprintf(`
 	INSERT INTO users (uuid , username, email, password_hash, activated)
-	VALUES ($1, $2, $3, $4 ,$5)
-	RETURNING uuid, created_at, version`
-	args := []interface{}{"uuid_generate_v4()", user.Username, user.Email, user.Password.hash, user.Activated}
+	VALUES (%s, $1, $2, $3 ,$4)
+	RETURNING uuid, created_at, version`,"uuid_generate_v4()")
+
+	args := []interface{}{user.Username, user.Email, user.Password.hash, user.Activated}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
