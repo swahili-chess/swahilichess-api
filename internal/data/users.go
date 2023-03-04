@@ -103,7 +103,7 @@ func (m UserModel) Insert(user *User) error {
 	query := fmt.Sprintf(`
 	INSERT INTO users (uuid , username, email, password_hash, activated)
 	VALUES (%s, $1, $2, $3 ,$4)
-	RETURNING uuid, created_at, version`,"uuid_generate_v4()")
+	RETURNING uuid, created_at, version`, "uuid_generate_v4()")
 
 	args := []interface{}{user.Username, user.Email, user.Password.hash, user.Activated}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -244,6 +244,7 @@ func (m UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error)
 		case errors.Is(err, sql.ErrNoRows):
 			return nil, ErrRecordNotFound
 		default:
+			fmt.Println("I made it here")
 			return nil, err
 		}
 	}
