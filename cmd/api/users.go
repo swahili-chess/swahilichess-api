@@ -108,6 +108,7 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 			v.AddError("token", "invalid or expired activation token")
 			app.failedValidationResponse(w, r, v.Errors)
 		default:
+			app.logger.PrintInfo("I made it here", nil)
 			app.serverErrorResponse(w, r, err)
 		}
 		return

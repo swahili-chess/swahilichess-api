@@ -244,7 +244,6 @@ func (m UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error)
 		case errors.Is(err, sql.ErrNoRows):
 			return nil, ErrRecordNotFound
 		default:
-			fmt.Println("I made it here")
 			return nil, err
 		}
 	}
