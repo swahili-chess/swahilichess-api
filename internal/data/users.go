@@ -25,8 +25,6 @@ type User struct {
 	UUID      string    `json:"uuid"`
 	Username  string    `json:"username"`
 	CreatedAt time.Time `json:"created_at"`
-	FirstName string    `json:"first_name"`
-	LastName  string    `json:"last_name"`
 	Email     string    `json:"email"`
 	Password  password  `json:"-"`
 	Activated bool      `json:"activated"`
