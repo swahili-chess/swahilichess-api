@@ -65,11 +65,11 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	app.background(func() {
-		name := user.Username
+		username := user.Username
 		data := map[string]interface{}{
 			"activationToken": token.Plaintext,
 			"userID":          user.UUID,
-			"Name":            name,
+			"username":       username,
 		}
 
 		err = app.mailer.Send(user.Email, "user_welcome.tmpl", data)
