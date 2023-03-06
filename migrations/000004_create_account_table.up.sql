@@ -6,6 +6,6 @@ CREATE TABLE IF NOT EXISTS accounts (
     lastname text UNIQUE NOT NULL,
     lichess_username citext UNIQUE NOT NULL,
     chesscom_username  citext UNIQUE NOT NULL,
-    phone_number text UNIQUE NOT NULL,
+    phone_number text UNIQUE NOT NULL
 );
 
