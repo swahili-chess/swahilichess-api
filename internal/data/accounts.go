@@ -72,7 +72,7 @@ func (a AccountModel) Insert(account *Account) error {
 	query := fmt.Sprintf(`
 	INSERT INTO accounts (account_id,user_id, firstname,lastname,lichess_username, chesscom_username, phone_number)
 	VALUES (%s, $1, $2, $3 , $4, $5, $6)
-	RETURNING uuid, created_at, version`, "uuid_generate_v4()")
+	RETURNING account_id, created_at`, "uuid_generate_v4()")
 
 	args := []interface{}{account.UserID, account.Firstname, account.Lastname, account.LichessUsername, account.ChesscomUsername, account.PhoneNumber}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
