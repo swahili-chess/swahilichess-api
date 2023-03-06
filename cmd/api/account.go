@@ -29,6 +29,9 @@ func (app *application) showProfile(w http.ResponseWriter, r *http.Request) {
 
 func (app *application) createProfile(w http.ResponseWriter, r *http.Request) {
 
+	user := app.contextGetUser(r)
+	user_id := user.UUID
+
 	var input struct {
 		Firstname        string `json:"firstname"`
 		Lastname         string `json:"lastname"`
@@ -61,6 +64,7 @@ func (app *application) createProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	account.UserID = user_id
 	err = app.models.Accounts.Insert(account)
 	if err != nil {
 		switch {
