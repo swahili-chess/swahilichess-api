@@ -5,7 +5,8 @@ CREATE TABLE IF NOT EXISTS accounts (
     firstname text UNIQUE NOT NULL,
     lastname text UNIQUE NOT NULL,
     lichess_username citext UNIQUE NOT NULL,
-    chesscom_username  citext UNIQUE NOT NULL,
+    chesscom_username  citext UNIQUE,
     phone_number text UNIQUE NOT NULL
+    photo BYTEA,
 );
 
