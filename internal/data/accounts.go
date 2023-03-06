@@ -84,7 +84,7 @@ func (a AccountModel) Insert(account *Account) error {
 
 }
 
-func (m UserModel) Get(user_id string) (*Account, error) {
+func (a AccountModel) Get(user_id string) (*Account, error) {
 	query := `
 SELECT account_id,user_id, firstname,lastname,lichess_username, chesscom_username, phone_number, photo, created_at
 FROM accounts
@@ -92,7 +92,7 @@ WHERE user_id = $1`
 	var account Account
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	err := m.DB.QueryRowContext(ctx, query, user_id).Scan(
+	err := a.DB.QueryRowContext(ctx, query, user_id).Scan(
 		&account.AccountID,
 		&account.UserID,
 		&account.Firstname,
