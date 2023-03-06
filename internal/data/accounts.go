@@ -10,6 +10,12 @@ import (
 	"backend.chesswahili.com/internal/validator"
 )
 
+var (
+	ErrDuplicateChesscomUsername = errors.New("given chess.com username already exits")
+	ErrDuplicateLichessUsername  = errors.New("given lichess username already exists")
+	ErrDuplicatePhonenumber      = errors.New("given phone number already exists")
+)
+
 type Account struct {
 	AccountID        string    `json:"account_id"`
 	UserID           string    `json:"user_id"`
@@ -19,7 +25,7 @@ type Account struct {
 	ChesscomUsername string    `json:"chesscom_username"`
 	PhoneNumber      string    `json:"phone_number"`
 	CreatedAt        time.Time `json:"created_at"`
-	Photo            []byte    `json:"photo"`
+	Photo            byte    `json:"photo"`
 }
 
 func ValidateFirstname(v *validator.Validator, firstname string) {
@@ -47,6 +53,13 @@ func ValidatePhoneNumber(v *validator.Validator, phone_number string) {
 
 }
 
+func ValidateAccount(v *validator.Validator, account *Account) {
+	ValidateFirstname(v, account.Firstname)
+	ValidateLastname(v, account.Lastname)
+	ValidateLichessUserName(v, account.LichessUsername)
+	ValidatePhoneNumber(v, account.PhoneNumber)
+}
+
 type AccountModel struct {
 	DB *sql.DB
 }
@@ -57,11 +70,11 @@ var chesscomNull sql.NullString
 func (a AccountModel) Insert(account *Account) error {
 
 	query := fmt.Sprintf(`
-	INSERT INTO accounts (account_id,user_id, firstname,lastname,lichess_username, chesscom_username, phone_number, photo)
-	VALUES (%s, $1, $2, $3 , $4, $5, $6, $7)
+	INSERT INTO accounts (account_id,user_id, firstname,lastname,lichess_username, chesscom_username, phone_number)
+	VALUES (%s, $1, $2, $3 , $4, $5, $6)
 	RETURNING uuid, created_at, version`, "uuid_generate_v4()")
 
-	args := []interface{}{account.UserID, account.Firstname, account.Lastname, account.LichessUsername, account.ChesscomUsername, account.PhoneNumber, account.Photo}
+	args := []interface{}{account.UserID, account.Firstname, account.Lastname, account.LichessUsername, account.ChesscomUsername, account.PhoneNumber}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -69,13 +82,13 @@ func (a AccountModel) Insert(account *Account) error {
 	if err != nil {
 		switch {
 		case err.Error() == `pq: duplicate key value violates unique constraint "accounts_lichess_username_key"`:
-			return ErrDuplicateEmail
+			return ErrDuplicateLichessUsername
 
 		case err.Error() == `pq: duplicate key value violates unique constraint "accounts_phone_number_key"`:
-			return ErrDuplicateUsername
+			return ErrDuplicatePhonenumber
 
 		case err.Error() == `pq: duplicate key value violates unique constraint "accounts_chesscom_username_key"`:
-			return ErrDuplicateUsername
+			return ErrDuplicateChesscomUsername
 		default:
 			return err
 		}
@@ -104,7 +117,6 @@ WHERE user_id = $1`
 		&account.CreatedAt,
 	)
 
-
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
@@ -125,7 +137,7 @@ WHERE user_id = $1`
 		chesscom = chesscomNull.String
 	}
 
-	account.Photo = []byte{photo}
+	account.Photo = photo
 	account.ChesscomUsername = chesscom
 
 	return &account, nil
