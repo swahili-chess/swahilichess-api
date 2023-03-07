@@ -26,6 +26,7 @@ func (app *application) routes() http.Handler {
     // User profile
 	router.HandlerFunc(http.MethodGet, "/v1/user/profile", app.requireActivatedUser(app.showProfile))
 	router.HandlerFunc(http.MethodPost, "/v1/user/create_profile", app.requireActivatedUser(app.createProfile))
+	router.HandlerFunc(http.MethodPut, "/v1/user/update_profile", app.requireActivatedUser(app.updateProfile))
 
 
 	// Metrics Routes
