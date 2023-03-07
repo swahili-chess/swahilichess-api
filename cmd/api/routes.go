@@ -32,6 +32,12 @@ func (app *application) routes() http.Handler {
 	// Metrics Routes
 	router.Handler(http.MethodGet, "/v1/metrics", expvar.Handler())
 
+
+	//password management
+
+	router.HandlerFunc(http.MethodPost, "/v1/tokens/passwordreset",app.createPasswordResetTokenHandler)
+	router.HandlerFunc(http.MethodPut, "/v1/users/password", app.updateUserPasswordHandler)
+
 	return app.metrics(app.recoverPanic(app.enableCORS(app.rateLimit(app.authenticate(router)))))
 
 }
