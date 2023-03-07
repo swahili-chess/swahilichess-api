@@ -142,3 +142,35 @@ WHERE user_id = $1`
 
 	return &account, nil
 }
+
+
+func (a AccountModel) Update(account *Account) error {
+
+	query := `
+	UPDATE accounts 
+	SET firstname = $1, lastname = $2 ,lichess_username = $3, chesscom_username = $4 , phone_number = $5
+	WHERE user_id = $7
+	RETURNING account_id`
+
+	args := []interface{}{account.Firstname, account.Lastname, account.LichessUsername, account.ChesscomUsername, account.PhoneNumber,account.UserID}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := a.DB.QueryRowContext(ctx, query, args...).Scan(&account.AccountID)
+	if err != nil {
+		switch {
+		case err.Error() == `pq: duplicate key value violates unique constraint "accounts_lichess_username_key"`:
+			return ErrDuplicateLichessUsername
+
+		case err.Error() == `pq: duplicate key value violates unique constraint "accounts_phone_number_key"`:
+			return ErrDuplicatePhonenumber
+
+		case err.Error() == `pq: duplicate key value violates unique constraint "accounts_chesscom_username_key"`:
+			return ErrDuplicateChesscomUsername
+		default:
+			return err
+		}
+	}
+	return nil
+
+}
