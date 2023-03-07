@@ -149,7 +149,7 @@ func (a AccountModel) Update(account *Account) error {
 	query := `
 	UPDATE accounts 
 	SET firstname = $1, lastname = $2 ,lichess_username = $3, chesscom_username = $4 , phone_number = $5
-	WHERE user_id = $7
+	WHERE user_id = $6
 	RETURNING account_id`
 
 	args := []interface{}{account.Firstname, account.Lastname, account.LichessUsername, account.ChesscomUsername, account.PhoneNumber,account.UserID}
