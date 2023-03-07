@@ -25,7 +25,7 @@ type Account struct {
 	ChesscomUsername string    `json:"chesscom_username"`
 	PhoneNumber      string    `json:"phone_number"`
 	CreatedAt        time.Time `json:"created_at"`
-	Photo            byte    `json:"photo"`
+	Photo            byte      `json:"photo"`
 }
 
 func ValidateFirstname(v *validator.Validator, firstname string) {
@@ -143,20 +143,18 @@ WHERE user_id = $1`
 	return &account, nil
 }
 
-
 func (a AccountModel) Update(account *Account) error {
 
 	query := `
 	UPDATE accounts 
 	SET firstname = $1, lastname = $2 ,lichess_username = $3, chesscom_username = $4 , phone_number = $5
-	WHERE user_id = $6
-	RETURNING account_id`
+	WHERE user_id = $6`
 
-	args := []interface{}{account.Firstname, account.Lastname, account.LichessUsername, account.ChesscomUsername, account.PhoneNumber,account.UserID}
+	args := []interface{}{account.Firstname, account.Lastname, account.LichessUsername, account.ChesscomUsername, account.PhoneNumber, account.UserID}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := a.DB.QueryRowContext(ctx, query, args...).Scan(&account.AccountID)
+	err := a.DB.QueryRowContext(ctx, query, args...).Scan()
 	if err != nil {
 		switch {
 		case err.Error() == `pq: duplicate key value violates unique constraint "accounts_lichess_username_key"`:
