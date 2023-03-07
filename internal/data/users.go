@@ -69,6 +69,14 @@ func ValidateEmail(v *validator.Validator, email string) {
 	v.Check(validator.Matches(email, validator.EmailRX), "email", "must be a valid email address")
 }
 
+func ValidateEmailOrUsername(v *validator.Validator,  uncheckedStr string )(map[string]string) {
+	v.Check(uncheckedStr != "", "email/username", "must be provided")
+	if validator.Matches(uncheckedStr, validator.EmailRX) {
+		return map[string]string{"email" : uncheckedStr}
+	}
+
+	return map[string]string{"username" : uncheckedStr}
+}
 func ValidateUsername(v *validator.Validator, username string) {
 	v.Check(username != "", "username", "must be provided")
 	v.Check(len(username) >= 3, "username", "must be at least 3 bytes long")

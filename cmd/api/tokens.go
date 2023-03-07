@@ -12,8 +12,8 @@ import (
 func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, r *http.Request) {
 
 	var input struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		UsernameOrEmail string `json:"username_email"`
+		Password        string `json:"password"`
 	}
 	err := app.readJSON(w, r, &input)
 	if err != nil {
@@ -22,17 +22,28 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 	}
 
 	v := validator.New()
-	data.ValidateEmail(v, input.Email)
+
+	res := data.ValidateEmailOrUsername(v, input.UsernameOrEmail)
+
 	data.ValidatePasswordPlaintext(v, input.Password)
 	if !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
-	user, err := app.models.Users.GetByEmail(input.Email)
-	if err != nil {
+	var user *data.User
+	var errGet error
+
+	if email, ok := res["email"]; ok {
+
+		user, errGet = app.models.Users.GetByEmail(email)
+	} else {
+		user, errGet  = app.models.Users.GetByUsername(res["username"])
+	}
+
+	if errGet != nil {
 		switch {
-		case errors.Is(err, data.ErrRecordNotFound):
+		case errors.Is(errGet, data.ErrRecordNotFound):
 			app.invalidCredentialsResponse(w, r)
 		default:
 			app.serverErrorResponse(w, r, err)
