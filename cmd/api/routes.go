@@ -28,6 +28,9 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPost, "/v1/user/create_profile", app.requireActivatedUser(app.createProfile))
 	router.HandlerFunc(http.MethodPut, "/v1/user/update_profile", app.requireActivatedUser(app.updateProfile))
 
+	// Resend user token route
+	router.HandlerFunc(http.MethodPost, "/v1/tokens/activation", app.createActivationTokenHandler)
+
 
 	// Metrics Routes
 	router.Handler(http.MethodGet, "/v1/metrics", expvar.Handler())
