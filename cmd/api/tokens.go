@@ -46,7 +46,7 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 		case errors.Is(errGet, data.ErrRecordNotFound):
 			app.invalidCredentialsResponse(w, r)
 		default:
-			app.serverErrorResponse(w, r, err)
+			app.serverErrorResponse(w, r, errGet)
 		}
 		return
 	}
