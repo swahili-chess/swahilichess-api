@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"expvar"
 	"flag"
+	"log/slog"
 	"os"
 	"runtime"
 	"sync"
 	"time"
 
 	"backend.chesswahili.com/internal/data"
-	"backend.chesswahili.com/internal/jsonlog"
 	"backend.chesswahili.com/internal/mailer"
 	_ "github.com/lib/pq"
 )
@@ -43,10 +43,18 @@ type config struct {
 
 type application struct {
 	config config
-	logger *jsonlog.Logger
 	models data.Models
 	mailer mailer.Mailer
 	wg     sync.WaitGroup
+}
+
+func init() {
+
+	var programLevel = new(slog.LevelVar)
+
+	h := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: programLevel})
+	slog.SetDefault(slog.New(h))
+
 }
 
 func main() {
@@ -70,15 +78,14 @@ func main() {
 
 	flag.Parse()
 
-	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
-
 	db, err := openDB(cfg)
 	if err != nil {
-		logger.PrintFatal(err, nil)
+		slog.Error("failed to establish connection to db", "error", err)
+		return
 	}
 
 	defer db.Close()
-	logger.PrintInfo("database connection pool established", nil)
+	slog.Info("database connection pool established")
 
 	expvar.NewString("version").Set(version)
 
@@ -96,14 +103,14 @@ func main() {
 
 	app := &application{
 		config: cfg,
-		logger: logger,
 		models: data.NewModels(db),
 		mailer: mailer.New(cfg.mailergun.domain, cfg.mailergun.privateKey, cfg.mailergun.sender),
 	}
 
 	err = app.serve()
 	if err != nil {
-		logger.PrintFatal(err, nil)
+		slog.Error("failed to start server", "error", err)
+		return
 	}
 
 }

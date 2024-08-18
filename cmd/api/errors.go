@@ -2,14 +2,12 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 )
 
 func (app *application) logError(r *http.Request, err error) {
-	app.logger.PrintError(err, map[string]string{
-		"request_method": r.Method,
-		"request_url":    r.URL.String(),
-	})
+	slog.Info("request info", "request_method", r.Method, "request_url", r.URL.String(), "error", err)
 }
 
 func (app *application) errorResponse(w http.ResponseWriter, r *http.Request, status int, message interface{}) {
