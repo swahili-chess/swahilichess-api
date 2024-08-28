@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
     created_at timestamp(0) with time zone NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS tokens (
+CREATE TABLE IF NOT EXISTS token (
     hash bytea PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users ON DELETE CASCADE,
     expiry timestamp(0) with time zone NOT NULL,
