@@ -1,190 +1,78 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
-	"time"
 
-	"backend.chesswahili.com/internal/data"
-	"backend.chesswahili.com/internal/validator"
+	db "backend.chesswahili.com/internal/db/sqlc"
+	"backend.chesswahili.com/internal/token"
+	"github.com/labstack/echo/v4"
+	"golang.org/x/crypto/bcrypt"
 )
 
-func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) createAuthTokenHandler(c echo.Context) error {
 
 	var input struct {
-		UsernameOrEmail string `json:"username_email"`
-		Password        string `json:"password"`
-	}
-	err := app.readJSON(w, r, &input)
-	if err != nil {
-		app.badRequestResponse(w, r, err)
-		return
+		PhoneNumber string `json:"phone_number" `
+		Username    string `json:"username" `
+		Password    string `json:"password"`
 	}
 
-	v := validator.New()
-
-	res := data.ValidateEmailOrUsername(v, input.UsernameOrEmail)
-
-	data.ValidatePasswordPlaintext(v, input.Password)
-	if !v.Valid() {
-		app.failedValidationResponse(w, r, v.Errors)
-		return
+	if err := c.Bind(&input); err != nil {
+		c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 
-	var user *data.User
-	var errGet error
-
-	if email, ok := res["email"]; ok {
-
-		user, errGet = app.models.Users.GetByEmail(email)
-	} else {
-		user, errGet = app.models.Users.GetByUsername(res["username"])
+	if err := app.validator.Struct(input); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 
-	if errGet != nil {
-		switch {
-		case errors.Is(errGet, data.ErrRecordNotFound):
-			app.invalidCredentialsResponse(w, r)
-		default:
-			app.serverErrorResponse(w, r, errGet)
-		}
-		return
+	args := db.GetUserByUsernameOrPhoneParams{
+		PhoneNumber: input.PhoneNumber,
+		Username:    input.Username,
 	}
 
-	match, err := user.Password.Matches(input.Password)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
+	user, err := app.store.GetUserByUsernameOrPhone(c.Request().Context(), args)
 
-	if !match {
-		app.invalidCredentialsResponse(w, r)
-		return
-	}
-
-	token, err := app.models.Tokens.New(user.UUID, 24*time.Hour, data.ScopeAuthentication)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-
-	err = app.writeJSON(w, http.StatusCreated, envelope{"authentication_token": token}, nil)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-	}
-}
-
-func (app *application) createPasswordResetTokenHandler(w http.ResponseWriter, r *http.Request) {
-	// Parse and validate the user's email address.
-	var input struct {
-		Email string `json:"email"`
-	}
-	err := app.readJSON(w, r, &input)
-	if err != nil {
-		app.badRequestResponse(w, r, err)
-		return
-	}
-	v := validator.New()
-	if data.ValidateEmail(v, input.Email); !v.Valid() {
-		app.failedValidationResponse(w, r, v.Errors)
-		return
-	}
-
-	user, err := app.models.Users.GetByEmail(input.Email)
 	if err != nil {
 		switch {
-		case errors.Is(err, data.ErrRecordNotFound):
-			v.AddError("email", "no matching email address found")
-			app.failedValidationResponse(w, r, v.Errors)
+		case errors.Is(err, sql.ErrNoRows):
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid phonenumber or username"})
+
 		default:
-			app.serverErrorResponse(w, r, err)
+			slog.Error("failed to get username or phone number", "error", err.Error())
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
-		return
 	}
 
-	if !user.Activated {
-		v.AddError("email", "user account must be activated")
-		app.failedValidationResponse(w, r, v.Errors)
-		return
-	}
+	err = bcrypt.CompareHashAndPassword(user.PasswordHash, []byte(input.Password))
 
-	token, err := app.models.Tokens.New(user.UUID, 45*time.Minute, data.ScopePasswordReset)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-
-	app.background(func() {
-		data := map[string]interface{}{
-			"passwordResetToken": token.Plaintext,
-		}
-
-		err = app.mailer.Send(user.Email, "token_password_reset.tmpl", data)
-		if err != nil {
-			slog.Error("error sending email", "error", err)
-		}
-	})
-
-	env := envelope{"message": "an email will be sent to you containing password reset instructions"}
-	err = app.writeJSON(w, http.StatusAccepted, env, nil)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-	}
-}
-
-func (app *application) createActivationTokenHandler(w http.ResponseWriter, r *http.Request) {
-	var input struct {
-		Email string `json:"email"`
-	}
-	err := app.readJSON(w, r, &input)
-	if err != nil {
-		app.badRequestResponse(w, r, err)
-		return
-	}
-	v := validator.New()
-	if data.ValidateEmail(v, input.Email); !v.Valid() {
-		app.failedValidationResponse(w, r, v.Errors)
-		return
-	}
-
-	user, err := app.models.Users.GetByEmail(input.Email)
 	if err != nil {
 		switch {
-		case errors.Is(err, data.ErrRecordNotFound):
-			v.AddError("email", "no matching email address found")
-			app.failedValidationResponse(w, r, v.Errors)
+		case errors.Is(err, bcrypt.ErrMismatchedHashAndPassword):
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid password"})
+
 		default:
-			app.serverErrorResponse(w, r, err)
+			slog.Error("failed comparing hash ", "Error", err.Error())
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
-		return
 	}
 
-	if user.Activated {
-		v.AddError("email", "user has already been activated")
-		app.failedValidationResponse(w, r, v.Errors)
-		return
-	}
-
-	token, err := app.models.Tokens.New(user.UUID, 3*24*time.Hour, data.ScopeActivation)
+	token, expiry, err := token.New(user.ID, app.store, token.ScopeAuthentication)
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
+		slog.Error("failed to create token", "error", err.Error())
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 
-	app.background(func() {
-		data := map[string]interface{}{
-			"activationToken": token.Plaintext,
-		}
-
-		err = app.mailer.Send(user.Email, "token_activation.tmpl", data)
-		if err != nil {
-			slog.Error("error sending email", "error", err)
-		}
-	})
-	env := envelope{"message": "an email will be sent to you containing activation instructions"}
-	err = app.writeJSON(w, http.StatusAccepted, env, nil)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
+	res := struct {
+		Token  string `json:"token"`
+		Expiry int64  `json:"expiry"`
+	}{
+		Token:  token,
+		Expiry: expiry.Unix(),
 	}
+
+	return c.JSON(200, res)
+
 }
