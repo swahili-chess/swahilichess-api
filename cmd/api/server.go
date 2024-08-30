@@ -2,11 +2,9 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -15,53 +13,41 @@ import (
 func (app *application) serve() error {
 
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", app.config.port),
+		Addr:         fmt.Sprintf(":%d", app.config.PORT),
 		Handler:      app.routes(),
 		IdleTimeout:  time.Minute,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
 	}
 
-	shutdownError := make(chan error)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	go func() {
-
-		quit := make(chan os.Signal, 1)
-		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-		s := <-quit
-
-		slog.Info("shutting down server", "signal", s.String())
-
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-
-		defer cancel()
-
-		err := srv.Shutdown(ctx)
-		if err != nil {
-			shutdownError <- err
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("server failed to start,listen and serve", "err", err)
+			return
 		}
-
-		slog.Info("completing background tasks", "addr", srv.Addr)
-
-		app.wg.Wait()
-		shutdownError <- nil
-
 	}()
 
-	slog.Info("Starting server ", "addr", srv.Addr, "env", app.config.env)
+	<-ctx.Done()
 
-	err := srv.ListenAndServe()
+	stop()
 
-	if !errors.Is(err, http.ErrServerClosed) {
-		return err
+	slog.Info("shutting down gracefully, press Ctrl+C again to force")
+
+	slog.Info("completing background tasks on", "address", srv.Addr)
+
+	app.wg.Wait()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		slog.Error("server forced to shutdown", "err", err)
 	}
 
-	err = <-shutdownError
-	if err != nil {
-		return err
-	}
-
-	slog.Info("Stopped server ", "addr", srv.Addr)
+	slog.Info("server exiting")
 
 	return nil
 
