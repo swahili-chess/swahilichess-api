@@ -6,11 +6,13 @@ CREATE TABLE IF NOT EXISTS users (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     username citext UNIQUE NOT NULL,
     full_name text NOT NULL,
-    lichess_username citext UNIQUE,
-    chesscom_username  citext UNIQUE,
+    lichess_username citext NOT NULL,
+    chesscom_username  citext NOT NULL,
     phone_number text UNIQUE NOT NULL,
     password_hash bytea NOT NULL,
+    passcode int NOT NULL DEFAULT 0,
     activated bool NOT NULL,
+    enabled bool NOT NULL,
     photo text NOT NULL,
     created_at timestamp(0) with time zone NOT NULL DEFAULT NOW()
 );
