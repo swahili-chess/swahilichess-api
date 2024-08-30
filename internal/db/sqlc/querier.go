@@ -12,13 +12,15 @@ import (
 
 type Querier interface {
 	CreateToken(ctx context.Context, arg CreateTokenParams) error
-	CreateUser(ctx context.Context, arg CreateUserParams) error
+	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
 	DeleteToken(ctx context.Context, arg DeleteTokenParams) error
 	DeleteUserById(ctx context.Context, id uuid.UUID) error
 	GetLichessTeamMembers(ctx context.Context) ([]Lichess, error)
-	GetUserByPhone(ctx context.Context, phoneNumber string) (GetUserByPhoneRow, error)
+	GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow, error)
+	GetUserByPasscode(ctx context.Context, passcode int32) (GetUserByPasscodeRow, error)
 	GetUserByToken(ctx context.Context, arg GetUserByTokenParams) (GetUserByTokenRow, error)
 	GetUserByUsername(ctx context.Context, username string) (GetUserByUsernameRow, error)
+	GetUserByUsernameOrPhone(ctx context.Context, arg GetUserByUsernameOrPhoneParams) (User, error)
 	UpdateUserById(ctx context.Context, arg UpdateUserByIdParams) error
 }
 

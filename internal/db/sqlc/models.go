@@ -5,7 +5,6 @@
 package db
 
 import (
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,14 +25,16 @@ type Token struct {
 }
 
 type User struct {
-	ID               uuid.UUID      `json:"id"`
-	Username         string         `json:"username"`
-	FullName         string         `json:"full_name"`
-	LichessUsername  sql.NullString `json:"lichess_username"`
-	ChesscomUsername sql.NullString `json:"chesscom_username"`
-	PhoneNumber      string         `json:"phone_number"`
-	PasswordHash     []byte         `json:"password_hash"`
-	Activated        bool           `json:"activated"`
-	Photo            string         `json:"photo"`
-	CreatedAt        time.Time      `json:"created_at"`
+	ID               uuid.UUID `json:"id"`
+	Username         string    `json:"username"`
+	FullName         string    `json:"full_name"`
+	LichessUsername  string    `json:"lichess_username"`
+	ChesscomUsername string    `json:"chesscom_username"`
+	PhoneNumber      string    `json:"phone_number"`
+	PasswordHash     []byte    `json:"password_hash"`
+	Passcode         int32     `json:"passcode"`
+	Activated        bool      `json:"activated"`
+	Enabled          bool      `json:"enabled"`
+	Photo            string    `json:"photo"`
+	CreatedAt        time.Time `json:"created_at"`
 }

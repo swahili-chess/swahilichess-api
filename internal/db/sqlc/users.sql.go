@@ -7,13 +7,12 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-const createUser = `-- name: CreateUser :exec
+const createUser = `-- name: CreateUser :one
 INSERT INTO users 
     (
      username, 
@@ -21,33 +20,49 @@ INSERT INTO users
      lichess_username,
      chesscom_username,
      phone_number,
+     photo,
+     passcode,
      password_hash, 
-     activated
+     activated,
+     enabled
     )
-VALUES ($1, $2, $3 ,$4, $5, $6, $7)
+VALUES ($1, $2, $3 ,$4, $5, $6, $7, $8,$9, $10) RETURNING id, phone_number
 `
 
 type CreateUserParams struct {
-	Username         string         `json:"username"`
-	FullName         string         `json:"full_name"`
-	LichessUsername  sql.NullString `json:"lichess_username"`
-	ChesscomUsername sql.NullString `json:"chesscom_username"`
-	PhoneNumber      string         `json:"phone_number"`
-	PasswordHash     []byte         `json:"password_hash"`
-	Activated        bool           `json:"activated"`
+	Username         string `json:"username"`
+	FullName         string `json:"full_name"`
+	LichessUsername  string `json:"lichess_username"`
+	ChesscomUsername string `json:"chesscom_username"`
+	PhoneNumber      string `json:"phone_number"`
+	Photo            string `json:"photo"`
+	Passcode         int32  `json:"passcode"`
+	PasswordHash     []byte `json:"password_hash"`
+	Activated        bool   `json:"activated"`
+	Enabled          bool   `json:"enabled"`
 }
 
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
-	_, err := q.db.ExecContext(ctx, createUser,
+type CreateUserRow struct {
+	ID          uuid.UUID `json:"id"`
+	PhoneNumber string    `json:"phone_number"`
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
+	row := q.db.QueryRowContext(ctx, createUser,
 		arg.Username,
 		arg.FullName,
 		arg.LichessUsername,
 		arg.ChesscomUsername,
 		arg.PhoneNumber,
+		arg.Photo,
+		arg.Passcode,
 		arg.PasswordHash,
 		arg.Activated,
+		arg.Enabled,
 	)
-	return err
+	var i CreateUserRow
+	err := row.Scan(&i.ID, &i.PhoneNumber)
+	return i, err
 }
 
 const deleteUserById = `-- name: DeleteUserById :exec
@@ -59,28 +74,31 @@ func (q *Queries) DeleteUserById(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const getUserByPhone = `-- name: GetUserByPhone :one
+const getUserById = `-- name: GetUserById :one
 SELECT id, username, full_name, lichess_username, chesscom_username,
-phone_number, password_hash, activated, created_at
+phone_number, photo, passcode, password_hash, enabled, activated, created_at
 FROM users
-WHERE phone_number = $1
+WHERE id = $1
 `
 
-type GetUserByPhoneRow struct {
-	ID               uuid.UUID      `json:"id"`
-	Username         string         `json:"username"`
-	FullName         string         `json:"full_name"`
-	LichessUsername  sql.NullString `json:"lichess_username"`
-	ChesscomUsername sql.NullString `json:"chesscom_username"`
-	PhoneNumber      string         `json:"phone_number"`
-	PasswordHash     []byte         `json:"password_hash"`
-	Activated        bool           `json:"activated"`
-	CreatedAt        time.Time      `json:"created_at"`
+type GetUserByIdRow struct {
+	ID               uuid.UUID `json:"id"`
+	Username         string    `json:"username"`
+	FullName         string    `json:"full_name"`
+	LichessUsername  string    `json:"lichess_username"`
+	ChesscomUsername string    `json:"chesscom_username"`
+	PhoneNumber      string    `json:"phone_number"`
+	Photo            string    `json:"photo"`
+	Passcode         int32     `json:"passcode"`
+	PasswordHash     []byte    `json:"password_hash"`
+	Enabled          bool      `json:"enabled"`
+	Activated        bool      `json:"activated"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
-func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (GetUserByPhoneRow, error) {
-	row := q.db.QueryRowContext(ctx, getUserByPhone, phoneNumber)
-	var i GetUserByPhoneRow
+func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserById, id)
+	var i GetUserByIdRow
 	err := row.Scan(
 		&i.ID,
 		&i.Username,
@@ -88,7 +106,52 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (GetUs
 		&i.LichessUsername,
 		&i.ChesscomUsername,
 		&i.PhoneNumber,
+		&i.Photo,
+		&i.Passcode,
 		&i.PasswordHash,
+		&i.Enabled,
+		&i.Activated,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUserByPasscode = `-- name: GetUserByPasscode :one
+SELECT id, username, full_name, lichess_username, chesscom_username,
+phone_number, photo, passcode, password_hash, enabled, activated, created_at
+FROM users
+WHERE passcode = $1
+`
+
+type GetUserByPasscodeRow struct {
+	ID               uuid.UUID `json:"id"`
+	Username         string    `json:"username"`
+	FullName         string    `json:"full_name"`
+	LichessUsername  string    `json:"lichess_username"`
+	ChesscomUsername string    `json:"chesscom_username"`
+	PhoneNumber      string    `json:"phone_number"`
+	Photo            string    `json:"photo"`
+	Passcode         int32     `json:"passcode"`
+	PasswordHash     []byte    `json:"password_hash"`
+	Enabled          bool      `json:"enabled"`
+	Activated        bool      `json:"activated"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
+func (q *Queries) GetUserByPasscode(ctx context.Context, passcode int32) (GetUserByPasscodeRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserByPasscode, passcode)
+	var i GetUserByPasscodeRow
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.FullName,
+		&i.LichessUsername,
+		&i.ChesscomUsername,
+		&i.PhoneNumber,
+		&i.Photo,
+		&i.Passcode,
+		&i.PasswordHash,
+		&i.Enabled,
 		&i.Activated,
 		&i.CreatedAt,
 	)
@@ -97,7 +160,7 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (GetUs
 
 const getUserByToken = `-- name: GetUserByToken :one
 SELECT users.id, users.username, users.full_name, users.lichess_username, 
-users.chesscom_username, users.phone_number, users.password_hash, users.activated, users.created_at
+users.chesscom_username, users.phone_number,users.photo, users.passcode, users.password_hash, users.activated,users.enabled, users.created_at
 FROM users
 INNER JOIN token
 ON users.id = token.user_id
@@ -113,15 +176,18 @@ type GetUserByTokenParams struct {
 }
 
 type GetUserByTokenRow struct {
-	ID               uuid.UUID      `json:"id"`
-	Username         string         `json:"username"`
-	FullName         string         `json:"full_name"`
-	LichessUsername  sql.NullString `json:"lichess_username"`
-	ChesscomUsername sql.NullString `json:"chesscom_username"`
-	PhoneNumber      string         `json:"phone_number"`
-	PasswordHash     []byte         `json:"password_hash"`
-	Activated        bool           `json:"activated"`
-	CreatedAt        time.Time      `json:"created_at"`
+	ID               uuid.UUID `json:"id"`
+	Username         string    `json:"username"`
+	FullName         string    `json:"full_name"`
+	LichessUsername  string    `json:"lichess_username"`
+	ChesscomUsername string    `json:"chesscom_username"`
+	PhoneNumber      string    `json:"phone_number"`
+	Photo            string    `json:"photo"`
+	Passcode         int32     `json:"passcode"`
+	PasswordHash     []byte    `json:"password_hash"`
+	Activated        bool      `json:"activated"`
+	Enabled          bool      `json:"enabled"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 func (q *Queries) GetUserByToken(ctx context.Context, arg GetUserByTokenParams) (GetUserByTokenRow, error) {
@@ -134,8 +200,11 @@ func (q *Queries) GetUserByToken(ctx context.Context, arg GetUserByTokenParams) 
 		&i.LichessUsername,
 		&i.ChesscomUsername,
 		&i.PhoneNumber,
+		&i.Photo,
+		&i.Passcode,
 		&i.PasswordHash,
 		&i.Activated,
+		&i.Enabled,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -143,21 +212,24 @@ func (q *Queries) GetUserByToken(ctx context.Context, arg GetUserByTokenParams) 
 
 const getUserByUsername = `-- name: GetUserByUsername :one
 SELECT id, username, full_name, lichess_username, chesscom_username,
-phone_number, password_hash, activated, created_at
+phone_number, photo, passcode, password_hash, enabled, activated, created_at
 FROM users
 WHERE username = $1
 `
 
 type GetUserByUsernameRow struct {
-	ID               uuid.UUID      `json:"id"`
-	Username         string         `json:"username"`
-	FullName         string         `json:"full_name"`
-	LichessUsername  sql.NullString `json:"lichess_username"`
-	ChesscomUsername sql.NullString `json:"chesscom_username"`
-	PhoneNumber      string         `json:"phone_number"`
-	PasswordHash     []byte         `json:"password_hash"`
-	Activated        bool           `json:"activated"`
-	CreatedAt        time.Time      `json:"created_at"`
+	ID               uuid.UUID `json:"id"`
+	Username         string    `json:"username"`
+	FullName         string    `json:"full_name"`
+	LichessUsername  string    `json:"lichess_username"`
+	ChesscomUsername string    `json:"chesscom_username"`
+	PhoneNumber      string    `json:"phone_number"`
+	Photo            string    `json:"photo"`
+	Passcode         int32     `json:"passcode"`
+	PasswordHash     []byte    `json:"password_hash"`
+	Enabled          bool      `json:"enabled"`
+	Activated        bool      `json:"activated"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username string) (GetUserByUsernameRow, error) {
@@ -170,8 +242,44 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (GetUs
 		&i.LichessUsername,
 		&i.ChesscomUsername,
 		&i.PhoneNumber,
+		&i.Photo,
+		&i.Passcode,
 		&i.PasswordHash,
+		&i.Enabled,
 		&i.Activated,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUserByUsernameOrPhone = `-- name: GetUserByUsernameOrPhone :one
+SELECT id, username, full_name, lichess_username, chesscom_username, phone_number, password_hash, passcode, activated, enabled, photo, created_at FROM users 
+WHERE 
+    (phone_number = $1 OR $1 = '' ) 
+    AND 
+    (username = $2 OR $2 = '')
+`
+
+type GetUserByUsernameOrPhoneParams struct {
+	PhoneNumber string `json:"phone_number"`
+	Username    string `json:"username"`
+}
+
+func (q *Queries) GetUserByUsernameOrPhone(ctx context.Context, arg GetUserByUsernameOrPhoneParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByUsernameOrPhone, arg.PhoneNumber, arg.Username)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.FullName,
+		&i.LichessUsername,
+		&i.ChesscomUsername,
+		&i.PhoneNumber,
+		&i.PasswordHash,
+		&i.Passcode,
+		&i.Activated,
+		&i.Enabled,
+		&i.Photo,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -185,21 +293,27 @@ SET
     lichess_username = $3, 
     chesscom_username = $4, 
     phone_number = $5, 
-    password_hash = $6, 
-    activated = $7
+    photo = $6,
+    passcode = $7,
+    password_hash = $8, 
+    activated = $9,
+    enabled = $10
 WHERE 
-    id = $8
+    id = $11
 `
 
 type UpdateUserByIdParams struct {
-	Username         string         `json:"username"`
-	FullName         string         `json:"full_name"`
-	LichessUsername  sql.NullString `json:"lichess_username"`
-	ChesscomUsername sql.NullString `json:"chesscom_username"`
-	PhoneNumber      string         `json:"phone_number"`
-	PasswordHash     []byte         `json:"password_hash"`
-	Activated        bool           `json:"activated"`
-	ID               uuid.UUID      `json:"id"`
+	Username         string    `json:"username"`
+	FullName         string    `json:"full_name"`
+	LichessUsername  string    `json:"lichess_username"`
+	ChesscomUsername string    `json:"chesscom_username"`
+	PhoneNumber      string    `json:"phone_number"`
+	Photo            string    `json:"photo"`
+	Passcode         int32     `json:"passcode"`
+	PasswordHash     []byte    `json:"password_hash"`
+	Activated        bool      `json:"activated"`
+	Enabled          bool      `json:"enabled"`
+	ID               uuid.UUID `json:"id"`
 }
 
 func (q *Queries) UpdateUserById(ctx context.Context, arg UpdateUserByIdParams) error {
@@ -209,8 +323,11 @@ func (q *Queries) UpdateUserById(ctx context.Context, arg UpdateUserByIdParams) 
 		arg.LichessUsername,
 		arg.ChesscomUsername,
 		arg.PhoneNumber,
+		arg.Photo,
+		arg.Passcode,
 		arg.PasswordHash,
 		arg.Activated,
+		arg.Enabled,
 		arg.ID,
 	)
 	return err
