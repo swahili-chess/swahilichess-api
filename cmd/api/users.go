@@ -1,202 +1,305 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
+	"math/rand"
 	"net/http"
-	"time"
+	"os"
+	"path/filepath"
+	"strings"
 
-	"backend.chesswahili.com/internal/data"
-	"backend.chesswahili.com/internal/validator"
+	db "backend.chesswahili.com/internal/db/sqlc"
+	"backend.chesswahili.com/internal/token"
+	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
+	"golang.org/x/crypto/bcrypt"
 )
 
-func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Request) {
+const image_upload_path = "/var/www/lugano/images"
+const base_image_url = "https://images.swahilichess.com"
+const default_image = "https://images.swahilichess.com/pawn.png"
 
-	var input struct {
-		Username string `json:"username"`
-		Email    string `json:"email"`
-		Password string `json:"password"`
+type input struct {
+	Username         string `json:"username" validate:"required,min=3"`
+	Password         string `json:"password" validate:"required,min=6"`
+	Fullname         string `json:"fullname" validate:"required,min=3"`
+	LichessUsername  string `json:"lichess_username"`
+	ChesscomUsername string `json:"chesscom_username"`
+	PhoneNumber      string `json:"phone_number"`
+	Photo            string `json:"photo"`
+}
+
+func (app *application) registerUserHandler(c echo.Context) error {
+
+	inp := new(input)
+
+	inp.Username = c.FormValue("username")
+	inp.Password = c.FormValue("password")
+	inp.Fullname = c.FormValue("fullname")
+	inp.LichessUsername = c.FormValue("lichess_username")
+	inp.ChesscomUsername = c.FormValue("chesscom_username")
+	inp.PhoneNumber = c.FormValue("phone_number")
+
+	if err := c.Bind(&inp); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 
-	err := app.readJSON(w, r, &input)
+	if err := app.validator.Struct(inp); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
+	is_file_uploaded := true
+	image_url := default_image
+
+	file, err := c.FormFile("photo")
 	if err != nil {
-		app.badRequestResponse(w, r, err)
-		return
-	}
-
-	user := &data.User{
-		Username:  input.Username,
-		Email:     input.Email,
-		Activated: false,
-	}
-
-	err = user.Password.Set(input.Password)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-
-	v := validator.New()
-
-	if data.ValidateUser(v, user); !v.Valid() {
-		app.failedValidationResponse(w, r, v.Errors)
-		return
-	}
-
-	err = app.models.Users.Insert(user)
-	if err != nil {
-		switch {
-
-		case errors.Is(err, data.ErrDuplicateEmail):
-			v.AddError("email", "a user with this email address already exists")
-			app.failedValidationResponse(w, r, v.Errors)
-		case errors.Is(err, data.ErrDuplicateUsername):
-			v.AddError("username", "a user with this username already exists")
-			app.failedValidationResponse(w, r, v.Errors)
-		default:
-			app.serverErrorResponse(w, r, err)
+		if err == http.ErrMissingFile {
+			is_file_uploaded = false
 		}
-		return
+
+		if strings.Contains(strings.ToLower(err.Error()), "too large") {
+			return c.JSON(http.StatusRequestEntityTooLarge, "File too large")
+		}
+
+		slog.Error("failed processing file upload", "error", err.Error())
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 
-	token, err := app.models.Tokens.New(user.UUID, 3*24*time.Hour, data.ScopeActivation)
+	if is_file_uploaded {
+		src, err := file.Open()
+		if err != nil {
+			return err
+		}
+		defer src.Close()
+
+		uniqueID := uuid.New()
+		imageExt := filepath.Ext(file.Filename)
+		image := fmt.Sprintf("%s%s", strings.Replace(uniqueID.String(), "-", "", -1), imageExt)
+		image_url = fmt.Sprintf("%s/%s", base_image_url, image)
+
+		dst, err := os.Create(fmt.Sprintf("%s/%s", image_upload_path, image))
+		if err != nil {
+			slog.Error("failed to create path for upload", "error", err.Error())
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		}
+		defer dst.Close()
+
+		if _, err = io.Copy(dst, src); err != nil {
+			slog.Error("failed to copy to path for upload", "error", err.Error())
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		}
+	}
+
+	password_hash, err := bcrypt.GenerateFromPassword([]byte(inp.Password), 6)
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
+		slog.Error("Error hashing password ", "Error", err.Error())
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 
+	passcode := rand.Intn(90000) + 10000
+
+	args := db.CreateUserParams{
+		Username:         inp.Username,
+		FullName:         inp.Fullname,
+		LichessUsername:  inp.LichessUsername,
+		ChesscomUsername: inp.ChesscomUsername,
+		PhoneNumber:      inp.PhoneNumber,
+		Photo:            image_url,
+		Passcode:         int32(passcode),
+		PasswordHash:     password_hash,
+		Activated:        false,
+		Enabled:          false,
+	}
+
+	user, err := app.store.CreateUser(c.Request().Context(), args)
+	if err != nil {
+		slog.Error("failed to create user ", "error", err.Error())
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+	}
+
+	msg := fmt.Sprintf("Code: %d \nUse it to activate your swahilichess account.", passcode)
 	app.background(func() {
-		username := user.Username
-		data := map[string]interface{}{
-			"activationToken": token.Plaintext,
-			"userID":          user.UUID,
-			"username":        username,
-		}
-
-		err = app.mailer.Send(user.Email, "user_welcome.tmpl", data)
+		err = app.nextsms.SendSmS(msg, user.PhoneNumber)
 		if err != nil {
 			slog.Error("error sending email", "error", err)
 		}
 	})
 
-	err = app.writeJSON(w, http.StatusAccepted, envelope{"user": user}, nil)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-	}
+	return c.JSON(http.StatusCreated, map[string]string{"success": "user created successful"})
+
 }
 
-func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) activateUserHandler(c echo.Context) error {
 
 	var input struct {
-		TokenPlaintext string `json:"token"`
-	}
-	err := app.readJSON(w, r, &input)
-	if err != nil {
-		app.badRequestResponse(w, r, err)
-		return
+		Passcode int32 `json:"passcode"`
 	}
 
-	v := validator.New()
-	if data.ValidateTokenPlaintext(v, input.TokenPlaintext); !v.Valid() {
-		app.failedValidationResponse(w, r, v.Errors)
-		return
+	if err := c.Bind(&input); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 
-	user, err := app.models.Users.GetForToken(data.ScopeActivation, input.TokenPlaintext)
+	if err := app.validator.Struct(input); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
+	user, err := app.store.GetUserByPasscode(context.Background(), input.Passcode)
 	if err != nil {
 		switch {
-		case errors.Is(err, data.ErrRecordNotFound):
-			v.AddError("token", "invalid or expired activation token")
-			app.failedValidationResponse(w, r, v.Errors)
+		case errors.Is(err, sql.ErrNoRows):
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "passcode doesn't exist or user arleady activated"})
 		default:
-			app.serverErrorResponse(w, r, err)
+			slog.Error("failed to get user by passcode ", "error", err.Error())
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		}
-		return
 	}
 
-	user.Activated = true
+	args := db.UpdateUserByIdParams{
+		Username:         user.Username,
+		FullName:         user.FullName,
+		LichessUsername:  user.LichessUsername,
+		ChesscomUsername: user.ChesscomUsername,
+		PhoneNumber:      user.PhoneNumber,
+		Photo:            user.Photo,
+		Passcode:         0,
+		PasswordHash:     user.PasswordHash,
+		Activated:        true,
+		Enabled:          true,
+		ID:               user.ID,
+	}
 
-	err = app.models.Users.Update(user)
+	err = app.store.UpdateUserById(context.Background(), args)
 	if err != nil {
-		switch {
-		case errors.Is(err, data.ErrEditConflict):
-			app.editConflictResponse(w, r)
-		default:
-			app.serverErrorResponse(w, r, err)
-		}
-		return
+		slog.Error("failed to update user on activate", "error", err.Error())
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 
-	err = app.models.Tokens.DeleteAllForUser(data.ScopeActivation, user.UUID)
+	token, expiry, err := token.New(user.ID, app.store, token.ScopeAuthentication)
+
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
+		slog.Error("failed to create token", "error", err.Error())
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 
-	err = app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
+	res := struct {
+		Token  string `json:"token"`
+		Expiry int64  `json:"expiry"`
+	}{
+		Token:  token,
+		Expiry: expiry.Unix(),
 	}
+
+	return c.JSON(200, res)
 }
 
+func (app *application) updateUserHandler(c echo.Context) error {
 
-func (app *application) updateUserPasswordHandler(w http.ResponseWriter, r *http.Request) {
-
-	var input struct {
-		Password       string `json:"password"`
-		TokenPlaintext string `json:"token"`
-	}
-	err := app.readJSON(w, r, &input)
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		app.badRequestResponse(w, r, err)
-		return
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid uuid"})
 	}
-	v := validator.New()
-	data.ValidatePasswordPlaintext(v, input.Password)
-	data.ValidateTokenPlaintext(v, input.TokenPlaintext)
-	if !v.Valid() {
-		app.failedValidationResponse(w, r, v.Errors)
-		return
+	password := c.FormValue("password")
+	fullname := c.FormValue("fullname")
+	lichessUsername := c.FormValue("lichess_username")
+	chesscomUsername := c.FormValue("chesscom_username")
+
+	user, err := app.store.GetUserById(context.Background(), id)
+	if err != nil {
+		slog.Error("failed to get user by id", "error", err.Error())
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 
-	user, err := app.models.Users.GetForToken(data.ScopePasswordReset, input.TokenPlaintext)
+	if fullname != "" {
+		user.FullName = fullname
+	}
+	if lichessUsername != "" {
+		user.LichessUsername = lichessUsername
+	}
+	if chesscomUsername != "" {
+		user.ChesscomUsername = chesscomUsername
+	}
+	is_file_uploaded := true
+
+	file, err := c.FormFile("photo")
 	if err != nil {
-		switch {
-		case errors.Is(err, data.ErrRecordNotFound):
-			v.AddError("token", "invalid or expired password reset token")
-			app.failedValidationResponse(w, r, v.Errors)
-		default:
-			app.serverErrorResponse(w, r, err)
+		if err == http.ErrMissingFile {
+			is_file_uploaded = false
 		}
-		return
-	}
 
-	err = user.Password.Set(input.Password)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-
-	err = app.models.Users.Update(user)
-	if err != nil {
-		switch {
-		case errors.Is(err, data.ErrEditConflict):
-			app.editConflictResponse(w, r)
-		default:
-			app.serverErrorResponse(w, r, err)
+		if strings.Contains(strings.ToLower(err.Error()), "too large") {
+			return c.JSON(http.StatusRequestEntityTooLarge, "File too large")
 		}
-		return
+
+		slog.Error("failed processing file upload", "error", err.Error())
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+	}
+	image_url := ""
+
+	if is_file_uploaded {
+		src, err := file.Open()
+		if err != nil {
+			return err
+		}
+		defer src.Close()
+
+		uniqueID := uuid.New()
+		imageExt := filepath.Ext(file.Filename)
+		image := fmt.Sprintf("%s%s", strings.Replace(uniqueID.String(), "-", "", -1), imageExt)
+		image_url = fmt.Sprintf("%s/%s", base_image_url, image)
+
+		dst, err := os.Create(fmt.Sprintf("%s/%s", image_upload_path, image))
+		if err != nil {
+			slog.Error("failed to create path for upload", "error", err.Error())
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		}
+		defer dst.Close()
+
+		if _, err = io.Copy(dst, src); err != nil {
+			slog.Error("failed to copy to path for upload", "error", err.Error())
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		}
+
+		user.Photo = image_url
 	}
 
-	err = app.models.Tokens.DeleteAllForUser(data.ScopePasswordReset, user.UUID)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
+	if password != "" {
+		if len(password) < 6 {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "password short (less than 6)"})
+		}
+		password_hash, err := bcrypt.GenerateFromPassword([]byte(password), 6)
+		if err != nil {
+			slog.Error("Error hashing password ", "Error", err.Error())
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		}
+		user.PasswordHash = password_hash
+
 	}
 
-	env := envelope{"message": "your password was successfully reset"}
-	err = app.writeJSON(w, http.StatusOK, env, nil)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
+	args := db.UpdateUserByIdParams{
+		Username:         user.Username,
+		FullName:         user.FullName,
+		LichessUsername:  user.LichessUsername,
+		ChesscomUsername: user.ChesscomUsername,
+		PhoneNumber:      user.PhoneNumber,
+		Photo:            user.Photo,
+		Passcode:         user.Passcode,
+		PasswordHash:     user.PasswordHash,
+		Activated:        user.Activated,
+		Enabled:          user.Enabled,
+		ID:               user.ID,
 	}
+
+	err = app.store.UpdateUserById(context.Background(), args)
+	if err != nil {
+		slog.Error("failed to update user details", "error", err.Error())
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"success": "user updated successfuly"})
+
 }
