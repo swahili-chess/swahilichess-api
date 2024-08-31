@@ -1,191 +1,79 @@
 package main
 
 import (
+	"crypto/sha256"
+	"database/sql"
 	"errors"
-	"expvar"
-	"fmt"
+	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	"backend.chesswahili.com/internal/data"
-	"backend.chesswahili.com/internal/validator"
-	"github.com/felixge/httpsnoop"
-	"github.com/tomasen/realip"
-	"golang.org/x/time/rate"
+	db "backend.chesswahili.com/internal/db/sqlc"
+	"backend.chesswahili.com/internal/token"
+	"github.com/labstack/echo/v4"
 )
 
-func (app *application) recoverPanic(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if err := recover(); err != nil {
-				w.Header().Set("Connection", "close")
+func (app *application) authenticate(next echo.HandlerFunc) echo.HandlerFunc {
 
-				app.serverErrorResponse(w, r, fmt.Errorf("%s", err))
-			}
+	return func(c echo.Context) error {
 
-		}()
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-func (app *application) rateLimit(next http.Handler) http.Handler {
-
-	type client struct {
-		limiter  *rate.Limiter
-		lastSeen time.Time
-	}
-	var (
-		mu      sync.Mutex
-		clients = make(map[string]*client)
-	)
-
-	go func() {
-		for {
-			time.Sleep(time.Minute)
-
-			mu.Lock()
-
-			for ip, client := range clients {
-				if time.Since(client.lastSeen) > 3*time.Minute {
-					delete(clients, ip)
-				}
-			}
-
-			mu.Unlock()
-		}
-	}()
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if app.config.limiter.enabled {
-			ip := realip.FromRequest(r)
-			mu.Lock()
-			if _, found := clients[ip]; !found {
-				clients[ip] = &client{
-
-					limiter: rate.NewLimiter(rate.Limit(app.config.limiter.rps), app.config.limiter.burst),
-				}
-			}
-			clients[ip].lastSeen = time.Now()
-			if !clients[ip].limiter.Allow() {
-				mu.Unlock()
-				app.rateLimitExceededResponse(w, r)
-				return
-			}
-			mu.Unlock()
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-func (app *application) authenticate(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		w.Header().Add("Vary", "Authorization")
-
-		authorizationHeader := r.Header.Get("Authorization")
-
+		authorizationHeader := c.Request().Header.Get("Authorization")
 		if authorizationHeader == "" {
-			r = app.contextSetUser(r, data.AnonymousUser)
-			next.ServeHTTP(w, r)
-			return
+			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		}
 
 		headerParts := strings.Split(authorizationHeader, " ")
 		if len(headerParts) != 2 || headerParts[0] != "Bearer" {
-			app.invalidAuthenticationTokenResponse(w, r)
-			return
+			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid auth token"})
+
 		}
 
-		token := headerParts[1]
+		tokenString := headerParts[1]
+		tokenHash := sha256.Sum256([]byte(tokenString))
 
-		v := validator.New()
-
-		if data.ValidateTokenPlaintext(v, token); !v.Valid() {
-			app.invalidAuthenticationTokenResponse(w, r)
-			return
+		params := db.GetUserByTokenParams{
+			Hash:   tokenHash[:],
+			Scope:  token.ScopeAuthentication,
+			Expiry: time.Now(),
 		}
 
-		user, err := app.models.Users.GetForToken(data.ScopeAuthentication, token)
+		user, err := app.store.GetUserByToken(c.Request().Context(), params)
+
 		if err != nil {
 			switch {
-			case errors.Is(err, data.ErrRecordNotFound):
-				app.invalidAuthenticationTokenResponse(w, r)
+			case errors.Is(err, sql.ErrNoRows):
+				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid or expired auth token"})
 			default:
-				app.serverErrorResponse(w, r, err)
+				slog.Error("Error on getting user associated with token ", "error", err.Error())
+				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 			}
-			return
 		}
 
-		r = app.contextSetUser(r, user)
+		c.Set("user", user)
 
-		next.ServeHTTP(w, r)
-	})
+		return next(c)
+
+	}
+
 }
 
-func (app *application) requireAuthenticatedUser(next http.HandlerFunc) http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user := app.contextGetUser(r)
-		if user.IsAnonymous() {
-			app.authenticationRequiredResponse(w, r)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
+// func (app *application) metrics(next http.Handler) http.Handler {
+// 	totalRequestsReceived := expvar.NewInt("total_requests_received")
+// 	totalResponsesSent := expvar.NewInt("total_responses_sent")
+// 	totalProcessingTimeMicroseconds := expvar.NewInt("total_processing_time_μs")
 
-func (app *application) requireActivatedUser(next http.HandlerFunc) http.HandlerFunc {
+// 	totalResponsesSentByStatus := expvar.NewMap("total_responses_sent_by_status")
+// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	fn := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user := app.contextGetUser(r)
+// 		totalRequestsReceived.Add(1)
 
-		if !user.Activated {
-			app.inactiveAccountResponse(w, r)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+// 		metrics := httpsnoop.CaptureMetrics(next, w, r)
 
-	return app.requireAuthenticatedUser(fn)
-}
+// 		totalResponsesSent.Add(1)
 
-func (app *application) enableCORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		origin := r.Header.Get("Origin")
+// 		totalProcessingTimeMicroseconds.Add(metrics.Duration.Microseconds())
 
-		if origin != "" {
-			if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
-
-				w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, PUT, PATCH, DELETE")
-				w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-func (app *application) metrics(next http.Handler) http.Handler {
-	totalRequestsReceived := expvar.NewInt("total_requests_received")
-	totalResponsesSent := expvar.NewInt("total_responses_sent")
-	totalProcessingTimeMicroseconds := expvar.NewInt("total_processing_time_μs")
-
-	totalResponsesSentByStatus := expvar.NewMap("total_responses_sent_by_status")
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		totalRequestsReceived.Add(1)
-
-		metrics := httpsnoop.CaptureMetrics(next, w, r)
-
-		totalResponsesSent.Add(1)
-
-		totalProcessingTimeMicroseconds.Add(metrics.Duration.Microseconds())
-
-		totalResponsesSentByStatus.Add(strconv.Itoa(metrics.Code), 1)
-	})
-}
+// 		totalResponsesSentByStatus.Add(strconv.Itoa(metrics.Code), 1)
+// 	})
+// }
