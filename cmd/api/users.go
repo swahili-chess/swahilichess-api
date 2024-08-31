@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	db "backend.chesswahili.com/internal/db/sqlc"
-	"backend.chesswahili.com/internal/token"
+	db "api.swahilichess.com/internal/db/sqlc"
+	"api.swahilichess.com/internal/token"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/crypto/bcrypt"

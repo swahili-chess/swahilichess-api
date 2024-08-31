@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"backend.chesswahili.com/config"
-	db "backend.chesswahili.com/internal/db/sqlc"
-	"backend.chesswahili.com/internal/nextsms"
+	"api.swahilichess.com/config"
+	db "api.swahilichess.com/internal/db/sqlc"
+	"api.swahilichess.com/internal/nextsms"
 	"github.com/go-playground/validator/v10"
 	_ "github.com/lib/pq"
 )

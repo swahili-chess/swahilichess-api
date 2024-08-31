@@ -7,7 +7,7 @@ import (
 	"encoding/base32"
 	"time"
 
-	db "backend.chesswahili.com/internal/db/sqlc"
+	db "api.swahilichess.com/internal/db/sqlc"
 	"github.com/google/uuid"
 )
 

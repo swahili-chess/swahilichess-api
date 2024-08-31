@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	db "backend.chesswahili.com/internal/db/sqlc"
-	"backend.chesswahili.com/internal/token"
+	db "api.swahilichess.com/internal/db/sqlc"
+	"api.swahilichess.com/internal/token"
 	"github.com/labstack/echo/v4"
 )
 
