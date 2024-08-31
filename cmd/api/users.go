@@ -23,6 +23,8 @@ import (
 const image_upload_path = "/var/www/lugano/images"
 const base_image_url = "https://images.swahilichess.com"
 const default_image = "https://images.swahilichess.com/pawn.png"
+const duplicate_phone = `pq: duplicate key value violates unique constraint "users_phone_number_key"`
+const duplicate_username = `pq: duplicate key value violates unique constraint "users_username_key"`
 
 type input struct {
 	Username         string `json:"username" validate:"required,min=3"`
@@ -118,8 +120,18 @@ func (app *application) registerUserHandler(c echo.Context) error {
 
 	user, err := app.store.CreateUser(c.Request().Context(), args)
 	if err != nil {
-		slog.Error("failed to create user ", "error", err.Error())
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		switch {
+		case err.Error() == duplicate_phone:
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "phone number already exists"})
+
+		case err.Error() == duplicate_username:
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "username already exists"})
+
+		default:
+			slog.Error("failed to create user ", "error", err.Error())
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		}
+
 	}
 
 	msg := fmt.Sprintf("Code: %d \nUse it to activate your swahilichess account.", passcode)
