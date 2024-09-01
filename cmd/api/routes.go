@@ -30,6 +30,8 @@ func (app *application) routes() *echo.Echo {
 	g.PUT("/users/:id", app.updateUserHandler)
 	g.POST("/users/:id", app.registerUserHandler)
 	g.POST("/users/activate", app.activateUserHandler)
+	g.POST("/users/forgot-password", app.forgotPasswordUserHandler)
+	g.POST("/users/change-password", app.changePasswordUserHandler)
 
 	return e
 

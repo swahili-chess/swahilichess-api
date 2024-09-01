@@ -2,18 +2,20 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	db "api.swahilichess.com/internal/db/sqlc"
+	"api.swahilichess.com/internal/passcode"
 	"api.swahilichess.com/internal/token"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -103,7 +105,7 @@ func (app *application) registerUserHandler(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 
-	passcode := rand.Intn(90000) + 10000
+	passcode, hash := passcode.HashPasscode()
 
 	args := db.CreateUserParams{
 		Username:         inp.Username,
@@ -112,7 +114,7 @@ func (app *application) registerUserHandler(c echo.Context) error {
 		ChesscomUsername: inp.ChesscomUsername,
 		PhoneNumber:      inp.PhoneNumber,
 		Photo:            image_url,
-		Passcode:         int32(passcode),
+		Passcode:         hash[:],
 		PasswordHash:     password_hash,
 		Activated:        false,
 		Enabled:          false,
@@ -130,7 +132,7 @@ func (app *application) registerUserHandler(c echo.Context) error {
 		default:
 			slog.Error("failed to create user ", "error", err.Error())
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
-		}
+		} 
 
 	}
 
@@ -138,7 +140,7 @@ func (app *application) registerUserHandler(c echo.Context) error {
 	app.background(func() {
 		err = app.nextsms.SendSmS(msg, user.PhoneNumber)
 		if err != nil {
-			slog.Error("error sending email", "error", err)
+			slog.Error("error sending sms", "error", err)
 		}
 	})
 
@@ -149,7 +151,9 @@ func (app *application) registerUserHandler(c echo.Context) error {
 func (app *application) activateUserHandler(c echo.Context) error {
 
 	var input struct {
-		Passcode int32 `json:"passcode"`
+		PhoneNumber string `json:"phone_number" `
+		Username    string `json:"username" `
+		Passcode    int32  `json:"passcode"`
 	}
 
 	if err := c.Bind(&input); err != nil {
@@ -160,7 +164,18 @@ func (app *application) activateUserHandler(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 
-	user, err := app.store.GetUserByPasscode(context.Background(), input.Passcode)
+	numStr := strconv.Itoa(int(input.Passcode))
+	data := []byte(numStr)
+
+	hash := sha256.Sum256(data)
+
+	params := db.GetUserForResetOrActivationParams{
+		PhoneNumber: input.PhoneNumber,
+		Username:    input.Username,
+		Passcode:    hash[:],
+	}
+
+	user, err := app.store.GetUserForResetOrActivation(c.Request().Context(), params)
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
@@ -178,7 +193,7 @@ func (app *application) activateUserHandler(c echo.Context) error {
 		ChesscomUsername: user.ChesscomUsername,
 		PhoneNumber:      user.PhoneNumber,
 		Photo:            user.Photo,
-		Passcode:         0,
+		Passcode:         []byte{},
 		PasswordHash:     user.PasswordHash,
 		Activated:        true,
 		Enabled:          true,
@@ -314,4 +329,143 @@ func (app *application) updateUserHandler(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]string{"success": "user updated successfuly"})
 
+}
+
+func (app *application) forgotPasswordUserHandler(c echo.Context) error {
+
+	var input struct {
+		PhoneNumber string `json:"phone_number" `
+		Username    string `json:"username" `
+	}
+
+	if err := c.Bind(&input); err != nil {
+		c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
+	params := db.GetUserByUsernameOrPhoneParams{
+		PhoneNumber: input.PhoneNumber,
+		Username:    input.Username,
+	}
+
+	user, err := app.store.GetUserByUsernameOrPhone(c.Request().Context(), params)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "username or phone number doesn't exist "})
+		default:
+			slog.Error("failed to get user by phone or username ", "error", err.Error())
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		}
+	}
+
+	if !(user.Activated && user.Enabled) {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "user not enabled or activated"})
+	}
+
+	passcode, hash := passcode.HashPasscode()
+
+	args := db.UpdateUserByIdParams{
+		Username:         user.Username,
+		FullName:         user.FullName,
+		LichessUsername:  user.LichessUsername,
+		ChesscomUsername: user.ChesscomUsername,
+		PhoneNumber:      user.PhoneNumber,
+		Photo:            user.Photo,
+		Passcode:         hash[:],
+		PasswordHash:     user.PasswordHash,
+		Activated:        true,
+		Enabled:          true,
+		ID:               user.ID,
+	}
+
+	err = app.store.UpdateUserById(context.Background(), args)
+	if err != nil {
+		slog.Error("failed to update user on forgot password", "error", err.Error())
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+	}
+
+	msg := fmt.Sprintf("Code: %d \nUse it to reset password for your swahilichess account.", passcode)
+	app.background(func() {
+		err = app.nextsms.SendSmS(msg, user.PhoneNumber)
+		if err != nil {
+			slog.Error("error sending sms", "error", err)
+		}
+	})
+
+	return c.JSON(200, nil)
+}
+
+func (app *application) changePasswordUserHandler(c echo.Context) error {
+
+	var input struct {
+		PhoneNumber string `json:"phone_number" `
+		Username    string `json:"username" `
+		Passcode    int32  `json:"passcode"`
+		Password    string `json:"password" validate:"required,min=6"`
+	}
+
+	if err := c.Bind(&input); err != nil {
+		c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
+	if err := app.validator.Struct(input); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
+	numStr := strconv.Itoa(int(input.Passcode))
+	data := []byte(numStr)
+
+	hash := sha256.Sum256(data)
+
+	params := db.GetUserForResetOrActivationParams{
+		PhoneNumber: input.PhoneNumber,
+		Username:    input.Username,
+		Passcode:    hash[:],
+	}
+	user, err := app.store.GetUserForResetOrActivation(c.Request().Context(), params)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "passcode doesn't exist"})
+		default:
+			slog.Error("failed to get user by phone or username ", "error", err.Error())
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		}
+	}
+
+	password_hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), 6)
+	if err != nil {
+		slog.Error("Error hashing password ", "Error", err.Error())
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+	}
+
+	args := db.UpdateUserByIdParams{
+		Username:         user.Username,
+		FullName:         user.FullName,
+		LichessUsername:  user.LichessUsername,
+		ChesscomUsername: user.ChesscomUsername,
+		PhoneNumber:      user.PhoneNumber,
+		Photo:            user.Photo,
+		Passcode:         []byte{},
+		PasswordHash:     password_hash,
+		Activated:        user.Activated,
+		Enabled:          user.Enabled,
+		ID:               user.ID,
+	}
+
+	err = app.store.UpdateUserById(context.Background(), args)
+	if err != nil {
+		slog.Error("failed to update password", "error", err.Error())
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+	}
+
+	msg := "Password changed successfully"
+	app.background(func() {
+		err = app.nextsms.SendSmS(msg, user.PhoneNumber)
+		if err != nil {
+			slog.Error("error sending sms", "error", err)
+		}
+	})
+
+	return c.JSON(200, nil)
 }
