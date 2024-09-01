@@ -14,12 +14,16 @@ INSERT INTO users
     )
 VALUES ($1, $2, $3 ,$4, $5, $6, $7, $8,$9, $10) RETURNING id, phone_number;
 
-
--- name: GetUserByPasscode :one
+-- name: GetUserForResetOrActivation :one
 SELECT id, username, full_name, lichess_username, chesscom_username,
 phone_number, photo, passcode, password_hash, enabled, activated, created_at
 FROM users
-WHERE passcode = $1;
+WHERE 
+   (phone_number = $1 OR $1 = '' ) 
+     AND 
+   (username = $2 OR $2 = '') 
+     AND
+   (passcode = $3);
 
 -- name: GetUserById :one
 SELECT id, username, full_name, lichess_username, chesscom_username,
