@@ -10,27 +10,22 @@ import (
 )
 
 const getLichessTeamMembers = `-- name: GetLichessTeamMembers :many
-SELECT id, lichess_id, username, created_at from lichess
+SELECT lichess_id from lichess
 `
 
-func (q *Queries) GetLichessTeamMembers(ctx context.Context) ([]Lichess, error) {
+func (q *Queries) GetLichessTeamMembers(ctx context.Context) ([]string, error) {
 	rows, err := q.db.QueryContext(ctx, getLichessTeamMembers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Lichess{}
+	items := []string{}
 	for rows.Next() {
-		var i Lichess
-		if err := rows.Scan(
-			&i.ID,
-			&i.LichessID,
-			&i.Username,
-			&i.CreatedAt,
-		); err != nil {
+		var lichess_id string
+		if err := rows.Scan(&lichess_id); err != nil {
 			return nil, err
 		}
-		items = append(items, i)
+		items = append(items, lichess_id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
