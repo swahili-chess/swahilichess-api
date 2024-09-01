@@ -26,7 +26,12 @@ type Member struct {
 	Disabled bool                   `json:"disabled"`
 }
 
-type Data struct {
+type Leaderboard struct {
+	Rapid []User `json:"rapid"`
+	Blitz []User `json:"blitz"`
+}
+
+type User struct {
 	Username string `json:"username"`
 	Rating   int    `json:"rating"`
 }
@@ -69,13 +74,13 @@ func (app *application) leaderboardHandler(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 
-	rapid := []Data{}
-	blitz := []Data{}
+	rapid := []User{}
+	blitz := []User{}
 
 	for _, user := range members {
 		if !user.Disabled {
-			rapid = append(rapid, Data{Username: user.Username, Rating: user.Perfs["rapid"].Rating})
-			blitz = append(blitz, Data{Username: user.Username, Rating: user.Perfs["blitz"].Rating})
+			rapid = append(rapid, User{Username: user.Username, Rating: user.Perfs["rapid"].Rating})
+			blitz = append(blitz, User{Username: user.Username, Rating: user.Perfs["blitz"].Rating})
 		}
 
 	}
@@ -88,10 +93,11 @@ func (app *application) leaderboardHandler(c echo.Context) error {
 		return blitz[i].Rating > blitz[j].Rating
 	})
 
-	summary := make(map[string][]Data)
-	summary["rapid"] = rapid
-	summary["blitz"] = blitz
+	leaderboard := Leaderboard{
+		Rapid: rapid,
+		Blitz: blitz,
+	}
 
-	return c.JSON(http.StatusOK, summary)
+	return c.JSON(http.StatusOK, leaderboard)
 
 }
