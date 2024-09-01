@@ -1,2 +1,2 @@
 -- name: GetLichessTeamMembers :many
-SELECT * from lichess;
+SELECT lichess_id from lichess;
