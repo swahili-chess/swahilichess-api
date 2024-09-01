@@ -13,7 +13,7 @@ import (
 func (app *application) serve() error {
 
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", app.config.PORT),
+		Addr:         fmt.Sprintf(":%s", app.config.PORT),
 		Handler:      app.routes(),
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  15 * time.Second,

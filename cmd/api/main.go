@@ -38,7 +38,7 @@ func init() {
 func main() {
 	var cfg config.Config
 
-	flag.IntVar(&cfg.PORT, "port", 4040, "API server port")
+	flag.StringVar(&cfg.PORT, "port", os.Getenv("PORT"), "API server port")
 	flag.StringVar(&cfg.ENV, "env", os.Getenv("ENV_STAGE"), "Environment (development|Staging|production")
 	flag.StringVar(&cfg.DB.DSN, "db-dsn", os.Getenv("SW_DB_DSN"), "PostgreSQL DSN")
 

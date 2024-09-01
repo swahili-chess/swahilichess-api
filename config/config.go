@@ -9,7 +9,7 @@ import (
 )
 
 type Config struct {
-	PORT int
+	PORT string
 	ENV  string
 
 	DB struct {
