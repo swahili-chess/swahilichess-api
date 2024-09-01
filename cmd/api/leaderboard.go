@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -34,7 +33,6 @@ type KeyValue struct {
 
 const user_url = "https://lichess.org/api/users"
 
-
 func (app *application) leaderboardHandler(c echo.Context) error {
 
 	members_ids, err := app.store.GetLichessTeamMembers(c.Request().Context())
@@ -64,26 +62,11 @@ func (app *application) leaderboardHandler(c echo.Context) error {
 
 	defer resp.Body.Close()
 
-	res := json.NewDecoder(resp.Body)
-
 	var members []Member
-
-	for {
-
-		var member Member
-		err := res.Decode(&member)
-		if err != nil {
-			if err != io.EOF {
-				slog.Error("we got an error while reading body", "err", err)
-				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
-			}
-
-			break
-
-		}
-
-		members = append(members, member)
-
+	err = json.NewDecoder(resp.Body).Decode(&members)
+	if err != nil {
+		slog.Error("error while reading bod (users)", "err", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 
 	summary := make(map[string]map[string]int)
