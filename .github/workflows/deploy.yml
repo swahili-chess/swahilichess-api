@@ -7,28 +7,28 @@ on:
  
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v3
 
     - name: Set up Go
       uses: actions/setup-go@v3
       with:
-        go-version: 1.19.2
+        go-version: 1.22.4
       
     - name: Test
       run: go test -v ./...
       
     - name: Build
-      run: go build -v -o sw-backend ./cmd/api
+      run: go build -v -o api ./cmd/api
 
     - uses: actions/upload-artifact@v3
       with:
           name: sw-artifact
-          path: ./sw-backend
+          path: ./api
 
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs: build
     steps:
       - uses: actions/checkout@v3
@@ -42,10 +42,10 @@ jobs:
            username: ${{ secrets.USERNAME }}
            password: ${{ secrets.PASSWORD }}
            port: ${{ secrets.PORT }}
-           source: ./sw-backend
-           target: "/home/${{ secrets.USERNAME }}/sw-backend"
+           source: ./api
+           target: "/home/${{ secrets.USERNAME }}/chess/swahilichess-api"
 
-      - name: Start Chesswahili Backend service and Reload Nginx
+      - name: Start SwahiliChess API service and Reload Nginx
         uses: appleboy/ssh-action@master
         with:
            host: ${{ secrets.HOST }}
@@ -53,10 +53,10 @@ jobs:
            password: ${{ secrets.PASSWORD }}
            port: ${{ secrets.PORT }}
            script: |
-               cd /home/${{ secrets.USERNAME }}/sw-backend
-               chmod +x sw-backend
-               echo ${{ secrets.PASSWORD }} | sudo -S systemctl stop sw-backend.service 
-               echo ${{ secrets.PASSWORD }} | sudo -S systemctl start sw-backend.service 
+               cd /home/${{ secrets.USERNAME }}/chess/swahilichess-api
+               chmod +x api
+               echo ${{ secrets.PASSWORD }} | sudo -S systemctl stop swahiliches-api.service 
+               echo ${{ secrets.PASSWORD }} | sudo -S systemctl start swahiliches-api.service
                echo ${{ secrets.PASSWORD }} | sudo -S systemctl reload nginx
 
  
