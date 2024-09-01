@@ -27,8 +27,8 @@ type Member struct {
 }
 
 type Data struct {
-	username string
-	rating   int
+	Username string 
+	Rating   int
 }
 
 const user_url = "https://lichess.org/api/users"
@@ -74,18 +74,18 @@ func (app *application) leaderboardHandler(c echo.Context) error {
 
 	for _, user := range members {
 		if !user.Disabled {
-			rapid = append(rapid, Data{username: user.Username, rating: user.Perfs["rapid"].Rating})
-			blitz = append(blitz, Data{username: user.Username, rating: user.Perfs["blitz"].Rating})
+			rapid = append(rapid, Data{Username: user.Username, Rating: user.Perfs["rapid"].Rating})
+			blitz = append(blitz, Data{Username: user.Username, Rating: user.Perfs["blitz"].Rating})
 		}
 
 	}
 
      sort.Slice(rapid, func(i, j int) bool {
-        return rapid[i].rating > rapid[j].rating
+        return rapid[i].Rating > rapid[j].Rating
     })
 
 	 sort.Slice(blitz, func(i, j int) bool {
-        return blitz[i].rating > blitz[j].rating
+        return blitz[i].Rating > blitz[j].Rating
     })
 
 	summary := make(map[string][]Data)
