@@ -25,6 +25,7 @@ func (app *application) routes() *echo.Echo {
 
 	e.GET("/ping", app.pingHandler)
 	e.POST("/login", app.createAuthTokenHandler)
+	e.GET("/leaderboard", app.leaderboardHandler)
 	g := e.Group("/auth")
 	g.Use(app.authenticate)
 	g.PUT("/users/:id", app.updateUserHandler)
