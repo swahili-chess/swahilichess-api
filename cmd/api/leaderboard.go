@@ -26,9 +26,9 @@ type Member struct {
 	Disabled bool                   `json:"disabled"`
 }
 
-type KeyValue struct {
-	Key   string
-	Value int
+type Data struct {
+	username string
+	rating   int
 }
 
 const user_url = "https://lichess.org/api/users"
@@ -69,38 +69,28 @@ func (app *application) leaderboardHandler(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 
-	summary := make(map[string]map[string]int)
-	summary["rapid"] = make(map[string]int)
-	summary["blitz"] = make(map[string]int)
+	  rapid := []Data{}
+	  blitz :=  []Data{}
 
 	for _, user := range members {
 		if !user.Disabled {
-			summary["rapid"][user.Username] = user.Perfs["rapid"].Rating
-			summary["blitz"][user.Username] = user.Perfs["blitz"].Rating
+			rapid = append(rapid, Data{username: user.Username, rating: user.Perfs["rapid"].Rating})
+			blitz = append(blitz, Data{username: user.Username, rating: user.Perfs["blitz"].Rating})
 		}
 
 	}
 
-	sort_replace := func(gameTypes ...string) {
+     sort.Slice(rapid, func(i, j int) bool {
+        return rapid[i].rating > rapid[j].rating
+    })
 
-		for _, gameType := range gameTypes {
-			var kvs []KeyValue
-			for k, v := range summary[gameType] {
-				kvs = append(kvs, KeyValue{Key: k, Value: v})
-			}
+	 sort.Slice(blitz, func(i, j int) bool {
+        return blitz[i].rating > blitz[j].rating
+    })
 
-			sort.Slice(kvs, func(i, j int) bool {
-				return kvs[i].Value > kvs[j].Value
-			})
-
-			summary[gameType] = make(map[string]int)
-			for _, kv := range kvs {
-				summary[gameType][kv.Key] = kv.Value
-			}
-		}
-	}
-
-	sort_replace("rapid", "blitz")
+	summary := make(map[string][]Data)
+	summary["rapid"] = rapid
+	summary["blitz"] = blitz
 
 	return c.JSON(http.StatusOK, summary)
 
