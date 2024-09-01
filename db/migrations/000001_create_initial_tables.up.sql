@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
     chesscom_username  citext NOT NULL,
     phone_number text UNIQUE NOT NULL,
     password_hash bytea NOT NULL,
-    passcode int NOT NULL DEFAULT 0,
+    passcode bytea NOT NULL DEFAULT '\x',
     activated bool NOT NULL,
     enabled bool NOT NULL,
     photo text NOT NULL,
