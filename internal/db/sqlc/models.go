@@ -32,7 +32,7 @@ type User struct {
 	ChesscomUsername string    `json:"chesscom_username"`
 	PhoneNumber      string    `json:"phone_number"`
 	PasswordHash     []byte    `json:"password_hash"`
-	Passcode         int32     `json:"passcode"`
+	Passcode         []byte    `json:"passcode"`
 	Activated        bool      `json:"activated"`
 	Enabled          bool      `json:"enabled"`
 	Photo            string    `json:"photo"`

@@ -36,7 +36,7 @@ type CreateUserParams struct {
 	ChesscomUsername string `json:"chesscom_username"`
 	PhoneNumber      string `json:"phone_number"`
 	Photo            string `json:"photo"`
-	Passcode         int32  `json:"passcode"`
+	Passcode         []byte `json:"passcode"`
 	PasswordHash     []byte `json:"password_hash"`
 	Activated        bool   `json:"activated"`
 	Enabled          bool   `json:"enabled"`
@@ -89,7 +89,7 @@ type GetUserByIdRow struct {
 	ChesscomUsername string    `json:"chesscom_username"`
 	PhoneNumber      string    `json:"phone_number"`
 	Photo            string    `json:"photo"`
-	Passcode         int32     `json:"passcode"`
+	Passcode         []byte    `json:"passcode"`
 	PasswordHash     []byte    `json:"password_hash"`
 	Enabled          bool      `json:"enabled"`
 	Activated        bool      `json:"activated"`
@@ -99,48 +99,6 @@ type GetUserByIdRow struct {
 func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserById, id)
 	var i GetUserByIdRow
-	err := row.Scan(
-		&i.ID,
-		&i.Username,
-		&i.FullName,
-		&i.LichessUsername,
-		&i.ChesscomUsername,
-		&i.PhoneNumber,
-		&i.Photo,
-		&i.Passcode,
-		&i.PasswordHash,
-		&i.Enabled,
-		&i.Activated,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const getUserByPasscode = `-- name: GetUserByPasscode :one
-SELECT id, username, full_name, lichess_username, chesscom_username,
-phone_number, photo, passcode, password_hash, enabled, activated, created_at
-FROM users
-WHERE passcode = $1
-`
-
-type GetUserByPasscodeRow struct {
-	ID               uuid.UUID `json:"id"`
-	Username         string    `json:"username"`
-	FullName         string    `json:"full_name"`
-	LichessUsername  string    `json:"lichess_username"`
-	ChesscomUsername string    `json:"chesscom_username"`
-	PhoneNumber      string    `json:"phone_number"`
-	Photo            string    `json:"photo"`
-	Passcode         int32     `json:"passcode"`
-	PasswordHash     []byte    `json:"password_hash"`
-	Enabled          bool      `json:"enabled"`
-	Activated        bool      `json:"activated"`
-	CreatedAt        time.Time `json:"created_at"`
-}
-
-func (q *Queries) GetUserByPasscode(ctx context.Context, passcode int32) (GetUserByPasscodeRow, error) {
-	row := q.db.QueryRowContext(ctx, getUserByPasscode, passcode)
-	var i GetUserByPasscodeRow
 	err := row.Scan(
 		&i.ID,
 		&i.Username,
@@ -183,7 +141,7 @@ type GetUserByTokenRow struct {
 	ChesscomUsername string    `json:"chesscom_username"`
 	PhoneNumber      string    `json:"phone_number"`
 	Photo            string    `json:"photo"`
-	Passcode         int32     `json:"passcode"`
+	Passcode         []byte    `json:"passcode"`
 	PasswordHash     []byte    `json:"password_hash"`
 	Activated        bool      `json:"activated"`
 	Enabled          bool      `json:"enabled"`
@@ -225,7 +183,7 @@ type GetUserByUsernameRow struct {
 	ChesscomUsername string    `json:"chesscom_username"`
 	PhoneNumber      string    `json:"phone_number"`
 	Photo            string    `json:"photo"`
-	Passcode         int32     `json:"passcode"`
+	Passcode         []byte    `json:"passcode"`
 	PasswordHash     []byte    `json:"password_hash"`
 	Enabled          bool      `json:"enabled"`
 	Activated        bool      `json:"activated"`
@@ -285,6 +243,59 @@ func (q *Queries) GetUserByUsernameOrPhone(ctx context.Context, arg GetUserByUse
 	return i, err
 }
 
+const getUserForResetOrActivation = `-- name: GetUserForResetOrActivation :one
+SELECT id, username, full_name, lichess_username, chesscom_username,
+phone_number, photo, passcode, password_hash, enabled, activated, created_at
+FROM users
+WHERE 
+   (phone_number = $1 OR $1 = '' ) 
+     AND 
+   (username = $2 OR $2 = '') 
+     AND
+   (passcode = $3)
+`
+
+type GetUserForResetOrActivationParams struct {
+	PhoneNumber string `json:"phone_number"`
+	Username    string `json:"username"`
+	Passcode    []byte `json:"passcode"`
+}
+
+type GetUserForResetOrActivationRow struct {
+	ID               uuid.UUID `json:"id"`
+	Username         string    `json:"username"`
+	FullName         string    `json:"full_name"`
+	LichessUsername  string    `json:"lichess_username"`
+	ChesscomUsername string    `json:"chesscom_username"`
+	PhoneNumber      string    `json:"phone_number"`
+	Photo            string    `json:"photo"`
+	Passcode         []byte    `json:"passcode"`
+	PasswordHash     []byte    `json:"password_hash"`
+	Enabled          bool      `json:"enabled"`
+	Activated        bool      `json:"activated"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
+func (q *Queries) GetUserForResetOrActivation(ctx context.Context, arg GetUserForResetOrActivationParams) (GetUserForResetOrActivationRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserForResetOrActivation, arg.PhoneNumber, arg.Username, arg.Passcode)
+	var i GetUserForResetOrActivationRow
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.FullName,
+		&i.LichessUsername,
+		&i.ChesscomUsername,
+		&i.PhoneNumber,
+		&i.Photo,
+		&i.Passcode,
+		&i.PasswordHash,
+		&i.Enabled,
+		&i.Activated,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const updateUserById = `-- name: UpdateUserById :exec
 UPDATE users
 SET 
@@ -309,7 +320,7 @@ type UpdateUserByIdParams struct {
 	ChesscomUsername string    `json:"chesscom_username"`
 	PhoneNumber      string    `json:"phone_number"`
 	Photo            string    `json:"photo"`
-	Passcode         int32     `json:"passcode"`
+	Passcode         []byte    `json:"passcode"`
 	PasswordHash     []byte    `json:"password_hash"`
 	Activated        bool      `json:"activated"`
 	Enabled          bool      `json:"enabled"`

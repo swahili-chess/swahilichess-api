@@ -17,10 +17,10 @@ type Querier interface {
 	DeleteUserById(ctx context.Context, id uuid.UUID) error
 	GetLichessTeamMembers(ctx context.Context) ([]Lichess, error)
 	GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow, error)
-	GetUserByPasscode(ctx context.Context, passcode int32) (GetUserByPasscodeRow, error)
 	GetUserByToken(ctx context.Context, arg GetUserByTokenParams) (GetUserByTokenRow, error)
 	GetUserByUsername(ctx context.Context, username string) (GetUserByUsernameRow, error)
 	GetUserByUsernameOrPhone(ctx context.Context, arg GetUserByUsernameOrPhoneParams) (User, error)
+	GetUserForResetOrActivation(ctx context.Context, arg GetUserForResetOrActivationParams) (GetUserForResetOrActivationRow, error)
 	UpdateUserById(ctx context.Context, arg UpdateUserByIdParams) error
 }
 
