@@ -21,8 +21,6 @@ func (app *application) routes() *echo.Echo {
 
 	e.Use(middleware.CORSWithConfig(DefaultCORSConfig))
 
-	//router.Handler(http.MethodGet, "/v1/metrics", expvar.Handler())
-
 	e.GET("/ping", app.pingHandler)
 	e.POST("/login", app.createAuthTokenHandler)
 	e.GET("/lichess/leaderboard", app.leaderboardHandler)
