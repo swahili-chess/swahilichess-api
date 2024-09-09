@@ -1,13 +1,10 @@
 package main
 
 import (
-	"expvar"
 	"flag"
 	"log/slog"
 	"os"
-	"runtime"
 	"sync"
-	"time"
 
 	"api.swahilichess.com/config"
 	db "api.swahilichess.com/internal/db/sqlc"
@@ -58,17 +55,6 @@ func main() {
 	}
 	defer conn.Close()
 	slog.Info("database connection pool established")
-
-	expvar.NewString("version").Set(version)
-	expvar.Publish("goroutines", expvar.Func(func() interface{} {
-		return runtime.NumGoroutine()
-	}))
-	expvar.Publish("database", expvar.Func(func() interface{} {
-		return conn.Stats()
-	}))
-	expvar.Publish("timestamp", expvar.Func(func() interface{} {
-		return time.Now().Unix()
-	}))
 
 	app := &application{
 		config:    cfg,
