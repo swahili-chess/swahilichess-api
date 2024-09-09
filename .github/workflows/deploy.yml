@@ -55,8 +55,8 @@ jobs:
            script: |
                cd /home/${{ secrets.USERNAME }}/chess/swahilichess-api
                chmod +x api
-               echo ${{ secrets.PASSWORD }} | sudo -S systemctl stop swahiliches-api.service 
-               echo ${{ secrets.PASSWORD }} | sudo -S systemctl start swahiliches-api.service
+               echo ${{ secrets.PASSWORD }} | sudo -S systemctl stop swahilichess-api.service 
+               echo ${{ secrets.PASSWORD }} | sudo -S systemctl start swahilichess-api.service
                echo ${{ secrets.PASSWORD }} | sudo -S systemctl reload nginx
 
  
