@@ -46,6 +46,10 @@ func (app *application) createAuthTokenHandler(c echo.Context) error {
 		}
 	}
 
+	if !user.Activated {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "user is not activated"})
+	}
+
 	err = bcrypt.CompareHashAndPassword(user.PasswordHash, []byte(input.Password))
 
 	if err != nil {
