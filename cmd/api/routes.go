@@ -26,6 +26,7 @@ func (app *application) routes() *echo.Echo {
 	e.POST("/users", app.registerUserHandler)
 	e.GET("/lichess/leaderboard", app.leaderboardHandler)
 	e.POST("/users/activate", app.activateUserHandler)
+	e.POST("/users/resend/activation", app.resendactivationHandler)
 	e.POST("/users/forgot-password", app.forgotPasswordUserHandler)
 	e.POST("/users/change-password", app.changePasswordUserHandler)
 

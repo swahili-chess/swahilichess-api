@@ -467,3 +467,67 @@ func (app *application) changePasswordUserHandler(c echo.Context) error {
 
 	return c.JSON(200, nil)
 }
+
+func (app *application) resendactivationHandler(c echo.Context) error {
+
+	var input struct {
+		PhoneNumber string `json:"phone_number" `
+		Username    string `json:"username" `
+	}
+
+	if err := c.Bind(&input); err != nil {
+		c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
+	params := db.GetUserByUsernameOrPhoneParams{
+		PhoneNumber: input.PhoneNumber,
+		Username:    input.Username,
+	}
+
+	user, err := app.store.GetUserByUsernameOrPhone(c.Request().Context(), params)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "username or phone number doesn't exist "})
+		default:
+			slog.Error("failed to get user by phone or username ", "error", err.Error())
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		}
+	}
+
+	if user.Activated {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "user already activated"})
+	}
+
+	passcode, hash := passcode.HashPasscode()
+
+	args := db.UpdateUserByIdParams{
+		Username:         user.Username,
+		FullName:         user.FullName,
+		LichessUsername:  user.LichessUsername,
+		ChesscomUsername: user.ChesscomUsername,
+		PhoneNumber:      user.PhoneNumber,
+		Photo:            user.Photo,
+		Passcode:         hash[:],
+		PasswordHash:     user.PasswordHash,
+		Activated:        user.Activated,
+		Enabled:          user.Enabled,
+		ID:               user.ID,
+	}
+
+	err = app.store.UpdateUserById(context.Background(), args)
+	if err != nil {
+		slog.Error("failed to update user", "error", err.Error())
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+	}
+
+	msg := fmt.Sprintf("Code: %d \nUse it to activate your swahilichess account.", passcode)
+	app.background(func() {
+		err = app.nextsms.SendSmS(msg, user.PhoneNumber)
+		if err != nil {
+			slog.Error("error sending sms", "error", err)
+		}
+	})
+
+	return c.JSON(200, map[string]string{"success": "resent activation"})
+}
