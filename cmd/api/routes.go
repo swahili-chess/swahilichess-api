@@ -25,7 +25,7 @@ func (app *application) routes() *echo.Echo {
 	e.POST("/login", app.createAuthTokenHandler)
 	e.POST("/users", app.registerUserHandler)
 	e.GET("/lichess/leaderboard", app.leaderboardHandler)
-    e.POST("/users/activate", app.activateUserHandler)
+	e.POST("/users/activate", app.activateUserHandler)
 	e.POST("/users/forgot-password", app.forgotPasswordUserHandler)
 	e.POST("/users/change-password", app.changePasswordUserHandler)
 
@@ -33,8 +33,7 @@ func (app *application) routes() *echo.Echo {
 	g.Use(app.authenticate)
 
 	g.PUT("/users/:id", app.updateUserHandler)
-	
-	
+
 	return e
 
 }
