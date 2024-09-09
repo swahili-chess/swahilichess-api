@@ -48,7 +48,6 @@ func (app *application) registerUserHandler(c echo.Context) error {
 	inp.ChesscomUsername = c.FormValue("chesscom_username")
 	inp.PhoneNumber = c.FormValue("phone_number")
 
-
 	if err := app.validator.Struct(inp); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
@@ -66,8 +65,11 @@ func (app *application) registerUserHandler(c echo.Context) error {
 			return c.JSON(http.StatusRequestEntityTooLarge, "File too large")
 		}
 
-		slog.Error("failed processing file upload", "error", err.Error())
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		if is_file_uploaded {
+			slog.Error("failed processing file upload", "error", err.Error())
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		}
+
 	}
 
 	if is_file_uploaded {
