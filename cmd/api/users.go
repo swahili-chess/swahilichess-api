@@ -48,9 +48,6 @@ func (app *application) registerUserHandler(c echo.Context) error {
 	inp.ChesscomUsername = c.FormValue("chesscom_username")
 	inp.PhoneNumber = c.FormValue("phone_number")
 
-	if err := c.Bind(&inp); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-	}
 
 	if err := app.validator.Struct(inp); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
