@@ -23,15 +23,18 @@ func (app *application) routes() *echo.Echo {
 
 	e.GET("/ping", app.pingHandler)
 	e.POST("/login", app.createAuthTokenHandler)
+	e.POST("/users", app.registerUserHandler)
 	e.GET("/lichess/leaderboard", app.leaderboardHandler)
+    e.POST("/users/activate", app.activateUserHandler)
+	e.POST("/users/forgot-password", app.forgotPasswordUserHandler)
+	e.POST("/users/change-password", app.changePasswordUserHandler)
+
 	g := e.Group("/auth")
 	g.Use(app.authenticate)
-	g.PUT("/users/:id", app.updateUserHandler)
-	g.POST("/users", app.registerUserHandler)
-	g.POST("/users/activate", app.activateUserHandler)
-	g.POST("/users/forgot-password", app.forgotPasswordUserHandler)
-	g.POST("/users/change-password", app.changePasswordUserHandler)
 
+	g.PUT("/users/:id", app.updateUserHandler)
+	
+	
 	return e
 
 }
