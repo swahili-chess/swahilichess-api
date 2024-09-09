@@ -79,7 +79,7 @@ func main() {
 
 	err = app.serve()
 	if err != nil {
-		slog.Error("failed to start server", "error", err)
+		slog.Error("failed to start or shutdown server", "error", err)
 		return
 	}
 
