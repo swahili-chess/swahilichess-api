@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -16,38 +17,48 @@ func (app *application) serve() error {
 		Addr:         fmt.Sprintf(":%s", app.config.PORT),
 		Handler:      app.routes(),
 		IdleTimeout:  time.Minute,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	shutdownError := make(chan error)
 
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("server failed to start,listen and serve", "err", err)
-			return
+
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		<-ctx.Done()
+
+		slog.Info("shutting down gracefully, press Ctrl+C again to force")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		err := srv.Shutdown(ctx)
+		if err != nil {
+			shutdownError <- err
 		}
+
+		slog.Info("completing background tasks", "address", srv.Addr)
+		app.wg.Wait()
+
+		shutdownError <- nil
+
 	}()
 
-	<-ctx.Done()
+	slog.Info("starting server ", "address", srv.Addr)
 
-	stop()
+	err := srv.ListenAndServe()
 
-	slog.Info("shutting down gracefully, press Ctrl+C again to force")
-
-	slog.Info("completing background tasks on", "address", srv.Addr)
-
-	app.wg.Wait()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := srv.Shutdown(ctx); err != nil {
-		slog.Error("server forced to shutdown", "err", err)
+	if !errors.Is(err, http.ErrServerClosed) {
+		return err
 	}
 
-	slog.Info("server exiting")
+	err = <-shutdownError
+	if err != nil {
+		return err
+	}
+
+	slog.Error("server stopped", "address", srv.Addr)
 
 	return nil
 
