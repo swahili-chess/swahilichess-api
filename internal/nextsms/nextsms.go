@@ -113,6 +113,6 @@ func (n NextSmS) SendSmS(msg string, recipient_phone string) error {
 		slog.Int("http-status", res.StatusCode),
 		slog.String("body", fmt.Sprintf("%+v", p)),
 	)
-	
+
 	return nil
 }

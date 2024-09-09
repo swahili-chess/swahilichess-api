@@ -57,4 +57,3 @@ func (app *application) authenticate(next echo.HandlerFunc) echo.HandlerFunc {
 	}
 
 }
-

@@ -41,7 +41,6 @@ type input struct {
 func (app *application) registerUserHandler(c echo.Context) error {
 
 	inp := new(input)
-
 	inp.Username = c.FormValue("username")
 	inp.Password = c.FormValue("password")
 	inp.Fullname = c.FormValue("fullname")
@@ -132,7 +131,7 @@ func (app *application) registerUserHandler(c echo.Context) error {
 		default:
 			slog.Error("failed to create user ", "error", err.Error())
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
-		} 
+		}
 
 	}
 

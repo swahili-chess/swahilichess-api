@@ -29,7 +29,7 @@ func HashPasscode() (int, [32]byte) {
 	passcode := GenSecureRandomNumber()
 	numStr := strconv.Itoa(passcode)
 	data := []byte(numStr)
-	
+
 	return passcode, sha256.Sum256(data)
 
 }
