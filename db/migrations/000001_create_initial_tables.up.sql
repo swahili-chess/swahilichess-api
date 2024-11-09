@@ -31,3 +31,8 @@ CREATE TABLE IF NOT EXISTS lichess (
     username TEXT UNIQUE NOT NULL,
     created_at TIMESTAMP(0) NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE tgbot_users (
+    id bigint PRIMARY KEY NOT NULL ,
+    isactive bool NOT NULL
+);
