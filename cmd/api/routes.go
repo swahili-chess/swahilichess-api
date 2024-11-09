@@ -25,6 +25,12 @@ func (app *application) routes() *echo.Echo {
 	e.POST("/login", app.createAuthTokenHandler)
 	e.GET("/lichess/leaderboard", app.leaderboardHandler)
 
+	e.GET("/lichess/members", app.getLichessTeamMemberHandler)
+	e.POST("/lichess/members", app.insertLichessTeamMemberHandler)
+    e.POST("/telegram/bot/users", app.insertTgUserHandler)
+	e.PUT("/telegram/bot/users", app.updateTgUserHandler)
+	e.GET("/telegram/bot/users/active", app.getActiveTgUserHandler)
+
 	// user management
 	e.POST("/users", app.registerUserHandler)
 	e.POST("/users/activate", app.activateUserHandler)
