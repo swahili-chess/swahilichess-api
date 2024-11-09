@@ -35,3 +35,17 @@ func (q *Queries) GetLichessTeamMembers(ctx context.Context) ([]string, error) {
 	}
 	return items, nil
 }
+
+const insertLichessTeamMember = `-- name: InsertLichessTeamMember :exec
+INSERT INTO lichess(lichess_id, username) VALUES ($1, $2)
+`
+
+type InsertLichessTeamMemberParams struct {
+	LichessID string `json:"lichess_id"`
+	Username  string `json:"username"`
+}
+
+func (q *Queries) InsertLichessTeamMember(ctx context.Context, arg InsertLichessTeamMemberParams) error {
+	_, err := q.db.ExecContext(ctx, insertLichessTeamMember, arg.LichessID, arg.Username)
+	return err
+}

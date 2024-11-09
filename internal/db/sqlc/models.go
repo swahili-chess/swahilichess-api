@@ -17,6 +17,11 @@ type Lichess struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type TgbotUser struct {
+	ID       int64 `json:"id"`
+	Isactive bool  `json:"isactive"`
+}
+
 type Token struct {
 	Hash   []byte    `json:"hash"`
 	UserID uuid.UUID `json:"user_id"`
