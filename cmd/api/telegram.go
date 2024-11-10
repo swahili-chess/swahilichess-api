@@ -39,7 +39,7 @@ func (app *application) insertTgUserHandler(c echo.Context) error {
 
 	if err != nil {
 		slog.Error("failed to insert tg users on db", "error", err)
-		c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()}) // real error is needed
 	}
 
 	return c.JSON(http.StatusOK, nil)
