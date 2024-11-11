@@ -11,7 +11,7 @@ func (app *application) getLichessTeamMemberHandler(c echo.Context) error {
 
 	members, err := app.store.GetLichessTeamMembers(c.Request().Context())
 
-	if err == nil {
+	if err != nil {
 		slog.Error("failed to get lichess member on db", "error", err)
 		c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
