@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -25,11 +26,21 @@ func (app *application) routes() *echo.Echo {
 	e.POST("/login", app.createAuthTokenHandler)
 	e.GET("/lichess/leaderboard", app.leaderboardHandler)
 
-	e.GET("/lichess/members", app.getLichessTeamMemberHandler)
-	e.POST("/lichess/members", app.insertLichessTeamMemberHandler)
-    e.POST("/telegram/bot/users", app.insertTgUserHandler)
-	e.PUT("/telegram/bot/users", app.updateTgUserHandler)
-	e.GET("/telegram/bot/users/active", app.getActiveTgUserHandler)
+	// for chessbot
+	b := e.Group("/bot")
+	b.Use(middleware.BasicAuth(func(username, password string, c echo.Context) (bool, error) {
+		if subtle.ConstantTimeCompare([]byte(username), []byte(app.config.BasicAuth.USERNAME)) == 1 &&
+			subtle.ConstantTimeCompare([]byte(password), []byte(app.config.BasicAuth.PASSWORD)) == 1 {
+			return true, nil
+		}
+		return false, nil
+	}))
+
+	b.GET("/lichess/members", app.getLichessTeamMemberHandler)
+	b.POST("/lichess/members", app.insertLichessTeamMemberHandler)
+	b.POST("/telegram/bot/users", app.insertTgUserHandler)
+	b.PUT("/telegram/bot/users", app.updateTgUserHandler)
+	b.GET("/telegram/bot/users/active", app.getActiveTgUserHandler)
 
 	// user management
 	e.POST("/users", app.registerUserHandler)

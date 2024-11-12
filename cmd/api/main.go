@@ -39,6 +39,9 @@ func main() {
 	flag.StringVar(&cfg.ENV, "env", os.Getenv("ENV_STAGE"), "Environment (development|Staging|production")
 	flag.StringVar(&cfg.DB.DSN, "db-dsn", os.Getenv("SW_DB_DSN"), "PostgreSQL DSN")
 
+	flag.StringVar(&cfg.BasicAuth.USERNAME, "basicauth-username", os.Getenv("BASICAUTH_USERNAME"), "basicauth-username")
+	flag.StringVar(&cfg.BasicAuth.PASSWORD, "basicauth-password", os.Getenv("BASICAUTH_PASSWORD"), "basicauth-password")
+	
 	flag.StringVar(&cfg.NextSmS.Username, "nextsms-username", os.Getenv("NEXTSMS_USERNAME"), "nextsms-username")
 	flag.StringVar(&cfg.NextSmS.Password, "nextsms-password", os.Getenv("NEXTSMS_PASSWORD"), "nextsms-password")
 

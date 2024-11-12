@@ -12,6 +12,11 @@ type Config struct {
 	PORT string
 	ENV  string
 
+	BasicAuth struct {
+		USERNAME string
+		PASSWORD string
+	}
+
 	DB struct {
 		DSN          string
 		MaxOpenConns int
