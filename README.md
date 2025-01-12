@@ -1,1 +1,1 @@
-# Backend for swahilichess.com
+## API for chess.tz sites and bots
