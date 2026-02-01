@@ -27,8 +27,9 @@ type Member struct {
 }
 
 type Leaderboard struct {
-	Rapid []User `json:"rapid"`
-	Blitz []User `json:"blitz"`
+	Rapid  []User `json:"rapid"`
+	Blitz  []User `json:"blitz"`
+	Bullet []User `json:"bullet"`
 }
 
 type User struct {
@@ -76,11 +77,13 @@ func (app *application) leaderboardHandler(c echo.Context) error {
 
 	rapid := []User{}
 	blitz := []User{}
+	bullet := []User{}
 
 	for _, user := range members {
 		if !user.Disabled {
 			rapid = append(rapid, User{Username: user.Username, Rating: user.Perfs["rapid"].Rating})
 			blitz = append(blitz, User{Username: user.Username, Rating: user.Perfs["blitz"].Rating})
+			bullet = append(bullet, User{Username: user.Username, Rating: user.Perfs["bullet"].Rating})
 		}
 
 	}
@@ -93,9 +96,14 @@ func (app *application) leaderboardHandler(c echo.Context) error {
 		return blitz[i].Rating > blitz[j].Rating
 	})
 
+	sort.Slice(bullet, func(i, j int) bool {
+		return bullet[i].Rating > bullet[j].Rating
+	})
+
 	leaderboard := Leaderboard{
-		Rapid: rapid,
-		Blitz: blitz,
+		Rapid:  rapid,
+		Blitz:  blitz,
+		Bullet: bullet,
 	}
 
 	return c.JSON(http.StatusOK, leaderboard)
