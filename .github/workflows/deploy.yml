@@ -20,7 +20,7 @@ jobs:
       run: go test -v ./...
       
     - name: Build
-      run: go build -v -o api ./cmd/api
+      run: CGO_ENABLED=0 go build -v -o api ./cmd/api
 
     - uses: actions/upload-artifact@v4
       with:
