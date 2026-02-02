@@ -48,9 +48,12 @@ func (app *application) leaderboardHandler(c echo.Context) error {
 	if app.leaderboardCache.data != nil && time.Now().Before(app.leaderboardCache.expiresAt) {
 		cachedData := app.leaderboardCache.data
 		app.leaderboardCache.mu.RUnlock()
+		slog.Info("serving leaderboard from cache")
 		return c.JSON(http.StatusOK, cachedData)
 	}
 	app.leaderboardCache.mu.RUnlock()
+
+	slog.Info("fetching fresh leaderboard data from Lichess API")
 
 	members_ids, err := app.store.GetLichessTeamMembers(c.Request().Context())
 	if err != nil {
