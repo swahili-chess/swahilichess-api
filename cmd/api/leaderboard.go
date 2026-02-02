@@ -37,14 +37,25 @@ type User struct {
 	Rating   int    `json:"rating"`
 }
 
-const user_url = "https://lichess.org/api/users"
+const (
+	user_url            = "https://lichess.org/api/users"
+	leaderboardCacheTTL = 3 * time.Minute
+)
 
 func (app *application) leaderboardHandler(c echo.Context) error {
+
+	app.leaderboardCache.mu.RLock()
+	if app.leaderboardCache.data != nil && time.Now().Before(app.leaderboardCache.expiresAt) {
+		cachedData := app.leaderboardCache.data
+		app.leaderboardCache.mu.RUnlock()
+		return c.JSON(http.StatusOK, cachedData)
+	}
+	app.leaderboardCache.mu.RUnlock()
 
 	members_ids, err := app.store.GetLichessTeamMembers(c.Request().Context())
 	if err != nil {
 		slog.Error("failed to get lichess team member ids", "error", err)
-		c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 
 	}
 
@@ -55,7 +66,7 @@ func (app *application) leaderboardHandler(c echo.Context) error {
 	req, err := http.NewRequest("POST", user_url, strings.NewReader(strings.Join(members_ids, ",")))
 	if err != nil {
 		slog.Error(fmt.Sprintf("failed to create request %s", user_url), "error", err)
-		c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 
 	}
 	req.Header.Set("Content-Type", "text/plain")
@@ -63,7 +74,7 @@ func (app *application) leaderboardHandler(c echo.Context) error {
 	resp, err := client.Do(req)
 	if err != nil {
 		slog.Error("failed to fetch team members data", "err", err)
-		c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 
 	defer resp.Body.Close()
@@ -105,6 +116,12 @@ func (app *application) leaderboardHandler(c echo.Context) error {
 		Blitz:  blitz,
 		Bullet: bullet,
 	}
+
+	app.leaderboardCache.mu.Lock()
+	app.leaderboardCache.data = &leaderboard
+	app.leaderboardCache.expiresAt = time.Now().Add(leaderboardCacheTTL)
+	app.leaderboardCache.mu.Unlock()
+
 
 	return c.JSON(http.StatusOK, leaderboard)
 

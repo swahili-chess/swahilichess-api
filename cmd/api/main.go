@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"time"
 
 	"api.swahilichess.com/config"
 	db "api.swahilichess.com/internal/db/sqlc"
@@ -15,12 +16,19 @@ import (
 
 const version = "1.0.0"
 
+type leaderboardCache struct {
+	data      *Leaderboard
+	expiresAt time.Time
+	mu        sync.RWMutex
+}
+
 type application struct {
-	config    config.Config
-	store     db.Store
-	wg        sync.WaitGroup
-	validator *validator.Validate
-	nextsms   nextsms.NextSmS
+	config           config.Config
+	store            db.Store
+	wg               sync.WaitGroup
+	validator        *validator.Validate
+	nextsms          nextsms.NextSmS
+	leaderboardCache leaderboardCache
 }
 
 func init() {
@@ -41,7 +49,7 @@ func main() {
 
 	flag.StringVar(&cfg.BasicAuth.USERNAME, "basicauth-username", os.Getenv("BASICAUTH_USERNAME"), "basicauth-username")
 	flag.StringVar(&cfg.BasicAuth.PASSWORD, "basicauth-password", os.Getenv("BASICAUTH_PASSWORD"), "basicauth-password")
-	
+
 	flag.StringVar(&cfg.NextSmS.Username, "nextsms-username", os.Getenv("NEXTSMS_USERNAME"), "nextsms-username")
 	flag.StringVar(&cfg.NextSmS.Password, "nextsms-password", os.Getenv("NEXTSMS_PASSWORD"), "nextsms-password")
 
