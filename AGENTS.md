@@ -1,0 +1,13 @@
+# Website v2 backend
+
+Use this repository's `website-v2` branch for all backend work supporting the website upgrade. The sibling website also has its own `website-v2` branch. Keep the repositories separate, preserve existing auth, bot, and Lichess consumers, and never merge or deploy during a browser review checkpoint.
+
+Current checkpoint: 4a, monthly FIDE integration. The leaderboard interface was accepted on 28 October 2026. Do not proceed to Lichess, Chess.com, or CMS integration without review. Read the sibling website's `docs/website-v2-roadmap.md` and `docs/fide-review.md` for coordinated scope and status.
+
+FIDE collection runs in `cmd/fide-refresh`, independently of visitor requests. Read stored snapshots through `/fide/leaderboard`. Use the official dated monthly XML archives for Standard, Rapid, and Blitz. The search endpoint is verified with Referer and X-Requested-With headers; use it to cross-check monthly imports. Never invent a FIDE Bullet category. Match FIDE search with `search_inactive=on`: eligible players must have an active Standard rating. Include their available Rapid and Blitz ratings even when those archives mark them inactive in that category. Players without Standard ratings are excluded by this FIDE search filter. Do not restore independent category inactivity filtering. Zero games this month does not mean inactive. Keep only Tanzania federation records and published chess identity/rating fields, not birthdays or sex.
+
+Store the verified rating month separately from fetch time. Once a month is imported, the worker waits until the next month. Failed imports retry after 24 hours and preserve the entire last good snapshot. Replace all three categories atomically. Keep the schedule in PostgreSQL and serialize workers with an advisory lock. Website refresh reads the snapshot, never triggers collection. Manual `-force` is available for same-month corrections.
+
+Use the isolated database in `compose.ratings.yml` for local work. Never read or modify a production database for preview testing. See README for commands. Run `go test ./...`, `go vet ./...`, and PostgreSQL integration tests with `TEST_DATABASE_URL`. Use `gofmt` on changed Go files.
+
+Required writing skill: `~/.agents/skills/unslop/SKILL.md`. For UI copy, also use `~/.agents/skills/ux-writing/SKILL.md`. If changing the Svelte website, read its AGENTS.md and use the required Svelte skills and analyzer. Keep documentation portable; do not put a contributor's absolute paths in startup instructions.

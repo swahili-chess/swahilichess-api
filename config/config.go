@@ -9,6 +9,7 @@ import (
 )
 
 type Config struct {
+	HOST string
 	PORT string
 	ENV  string
 

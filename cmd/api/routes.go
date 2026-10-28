@@ -23,6 +23,7 @@ func (app *application) routes() *echo.Echo {
 	e.Use(middleware.CORSWithConfig(DefaultCORSConfig))
 
 	e.GET("/ping", app.pingHandler)
+	e.GET("/fide/leaderboard", app.fideLeaderboardHandler)
 	e.POST("/login", app.createAuthTokenHandler)
 	e.GET("/lichess/leaderboard", app.leaderboardHandler)
 

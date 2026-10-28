@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os/signal"
 	"syscall"
@@ -14,7 +14,7 @@ import (
 func (app *application) serve() error {
 
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%s", app.config.PORT),
+		Addr:         net.JoinHostPort(app.config.HOST, app.config.PORT),
 		Handler:      app.routes(),
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,

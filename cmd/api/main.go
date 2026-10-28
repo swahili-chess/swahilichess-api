@@ -9,6 +9,7 @@ import (
 
 	"api.swahilichess.com/config"
 	db "api.swahilichess.com/internal/db/sqlc"
+	"api.swahilichess.com/internal/fide"
 	"api.swahilichess.com/internal/nextsms"
 	"github.com/go-playground/validator/v10"
 	_ "github.com/lib/pq"
@@ -24,6 +25,7 @@ type leaderboardCache struct {
 
 type application struct {
 	config           config.Config
+	fideStore        *fide.Store
 	store            db.Store
 	wg               sync.WaitGroup
 	validator        *validator.Validate
@@ -43,6 +45,7 @@ func init() {
 func main() {
 	var cfg config.Config
 
+	flag.StringVar(&cfg.HOST, "host", os.Getenv("HOST"), "API bind host; empty listens on all interfaces")
 	flag.StringVar(&cfg.PORT, "port", os.Getenv("PORT"), "API server port")
 	flag.StringVar(&cfg.ENV, "env", os.Getenv("ENV_STAGE"), "Environment (development|Staging|production")
 	flag.StringVar(&cfg.DB.DSN, "db-dsn", os.Getenv("SW_DB_DSN"), "PostgreSQL DSN")
@@ -69,6 +72,7 @@ func main() {
 
 	app := &application{
 		config:    cfg,
+		fideStore: &fide.Store{DB: conn},
 		store:     db.NewStore(conn),
 		validator: validator.New(),
 		nextsms:   nextsms.New(cfg.NextSmS.Username, cfg.NextSmS.Password),

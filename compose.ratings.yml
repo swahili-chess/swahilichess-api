@@ -1,0 +1,21 @@
+# Isolated local review database. Never point these commands at production.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: chess_ratings
+      POSTGRES_USER: chess
+      POSTGRES_PASSWORD: local_review_only
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - ratings_data:/var/lib/postgresql/data
+      - ./db/migrations/000001_create_initial_tables.up.sql:/docker-entrypoint-initdb.d/001.sql:ro
+      - ./db/migrations/000002_fide_snapshot.up.sql:/docker-entrypoint-initdb.d/002.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chess -d chess_ratings"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+volumes:
+  ratings_data:
