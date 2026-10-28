@@ -26,6 +26,7 @@ func (app *application) routes() *echo.Echo {
 	e.GET("/fide/leaderboard", app.fideLeaderboardHandler)
 	e.POST("/login", app.createAuthTokenHandler)
 	e.GET("/lichess/leaderboard", app.leaderboardHandler)
+	e.GET("/lichess/ratings", app.lichessRatingsHandler)
 
 	// for chessbot
 	b := e.Group("/bot")

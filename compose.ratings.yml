@@ -12,6 +12,7 @@ services:
       - ratings_data:/var/lib/postgresql/data
       - ./db/migrations/000001_create_initial_tables.up.sql:/docker-entrypoint-initdb.d/001.sql:ro
       - ./db/migrations/000002_fide_snapshot.up.sql:/docker-entrypoint-initdb.d/002.sql:ro
+      - ./db/migrations/000003_lichess_snapshot.up.sql:/docker-entrypoint-initdb.d/003.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U chess -d chess_ratings"]
       interval: 2s

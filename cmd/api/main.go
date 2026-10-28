@@ -10,6 +10,7 @@ import (
 	"api.swahilichess.com/config"
 	db "api.swahilichess.com/internal/db/sqlc"
 	"api.swahilichess.com/internal/fide"
+	"api.swahilichess.com/internal/lichess"
 	"api.swahilichess.com/internal/nextsms"
 	"github.com/go-playground/validator/v10"
 	_ "github.com/lib/pq"
@@ -26,6 +27,7 @@ type leaderboardCache struct {
 type application struct {
 	config           config.Config
 	fideStore        *fide.Store
+	lichessStore     *lichess.Store
 	store            db.Store
 	wg               sync.WaitGroup
 	validator        *validator.Validate
@@ -71,11 +73,12 @@ func main() {
 	slog.Info("database connection pool established")
 
 	app := &application{
-		config:    cfg,
-		fideStore: &fide.Store{DB: conn},
-		store:     db.NewStore(conn),
-		validator: validator.New(),
-		nextsms:   nextsms.New(cfg.NextSmS.Username, cfg.NextSmS.Password),
+		config:       cfg,
+		fideStore:    &fide.Store{DB: conn},
+		lichessStore: &lichess.Store{DB: conn},
+		store:        db.NewStore(conn),
+		validator:    validator.New(),
+		nextsms:      nextsms.New(cfg.NextSmS.Username, cfg.NextSmS.Password),
 	}
 
 	err = app.serve()

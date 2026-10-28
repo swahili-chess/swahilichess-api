@@ -47,6 +47,21 @@ The official [download page](https://ratings.fide.com/download_lists.phtml) iden
 
 `stale` means the stored month precedes the current UTC month or the last import failed. With no saved snapshot, or a database failure, the endpoint returns HTTP 503 with a generic message. There is no public refresh/write endpoint. The website's Refresh button only reloads the saved data.
 
+## Lichess ratings
+
+Lichess has no country leaderboard, so the ranking includes members of the Nyumbani Mates team. Its member list is private. Create a Lichess personal access token with the `team:read` scope from an account in the team, and provide it only through the environment:
+
+```sh
+export LICHESS_TOKEN='<personal token>'
+go run ./cmd/lichess-refresh          # once, when due
+go run ./cmd/lichess-refresh -watch   # hourly until stopped
+go run ./cmd/lichess-refresh -force   # once, immediately
+```
+
+Apply `db/migrations/000003_lichess_snapshot.up.sql` once to an existing database. The collector reads the team roster, then current ratings through the batch users API in serialized batches of up to 300. It excludes closed, terms-violation and bot accounts, stores unplayed categories as missing rather than Lichess's 1500 placeholder, and keeps provisional flags. Any failed request keeps the previous snapshot. Successful and failed runs both wait an hour before the next attempt.
+
+`GET /lichess/ratings` only reads PostgreSQL. It returns `provider`, `team`, `fetchedAt`, `stale`, `players` with `id`, `name`, optional `title` and `ratings` such as `{ "value": 2304, "provisional": true }`, and `source` counts for members, closed, violated, bots, missing and ranked players. `stale` is true after a failed run or when the snapshot is more than three hours old. With no snapshot it returns HTTP 503. The original `/lichess/leaderboard` route and the bot's `lichess` table are unchanged.
+
 ## Checks
 
 ```sh
