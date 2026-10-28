@@ -47,7 +47,7 @@ func TestSnapshotPersistence(t *testing.T) {
 	if _, err = db.Exec(string(migration)); err != nil {
 		t.Fatal(err)
 	}
-	store := &Store{DB: db}
+	store := NewStore(db)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Second)
 	if _, err = store.Read(ctx, now); !errors.Is(err, ErrUnavailable) {

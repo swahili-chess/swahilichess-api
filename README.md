@@ -62,6 +62,22 @@ Apply `db/migrations/000003_lichess_snapshot.up.sql` once to an existing databas
 
 `GET /lichess/ratings` only reads PostgreSQL. It returns `provider`, `team`, `fetchedAt`, `stale`, `players` with `id`, `name`, optional `title` and `ratings` such as `{ "value": 2304, "provisional": true }`, and `source` counts for members, closed, violated, bots, missing and ranked players. `stale` is true after a failed run or when the snapshot is more than three hours old. With no snapshot it returns HTTP 503. The original `/lichess/leaderboard` route and the bot's `lichess` table are unchanged.
 
+## Chess.com ratings
+
+Chess.com's official Published-Data API needs no login or token:
+
+```sh
+go run ./cmd/chesscom-refresh          # once, when due
+go run ./cmd/chesscom-refresh -watch   # checks hourly, refreshes daily
+go run ./cmd/chesscom-refresh -force   # once, immediately
+```
+
+Apply `db/migrations/000004_chesscom_snapshot.up.sql` once to an existing database. Each run reads `/pub/country/TZ/players`, adds every account saved by the previous snapshot, then reads each account's profile and stats. A category is ranked only when the account is at least 7 days old, has 20 games in that category, and played a rated game in any category in the last 90 days, matching Chess.com's leaderboard rules. Other accounts stay saved, unranked, for the next check. The country list only covers recently active accounts, so carrying saved accounts forward keeps players who have not logged in for a while. Each profile is rechecked: closed accounts, including fair-play closures, and accounts whose country is no longer Tanzania are dropped. Deleted accounts count as missing. Chess.com's stable `player_id` removes duplicates after a rename.
+
+Four requests run at a time. HTTP 429, server errors and network failures retry up to five times with exponential backoff. Any request that still fails cancels the run and keeps the previous snapshot. A successful run waits 24 hours; a failed run retries after six hours. A full run of about 2,000 accounts takes several minutes.
+
+`GET /chesscom/ratings` only reads PostgreSQL. It returns `provider`, `country`, `fetchedAt`, `stale`, `players` with `id` (lowercase username), `name`, `playerId`, optional `title` and `ratings` such as `{ "value": 1206 }`, and `source` counts for listed, previously known, checked, closed, moved, missing, saved and unranked accounts. A category without games is omitted. `stale` is true after a failed run or when the snapshot is more than two days old. With no snapshot it returns HTTP 503.
+
 ## Checks
 
 ```sh

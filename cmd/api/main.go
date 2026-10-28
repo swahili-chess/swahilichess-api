@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"api.swahilichess.com/config"
+	"api.swahilichess.com/internal/chesscom"
 	db "api.swahilichess.com/internal/db/sqlc"
 	"api.swahilichess.com/internal/fide"
 	"api.swahilichess.com/internal/lichess"
@@ -28,6 +29,7 @@ type application struct {
 	config           config.Config
 	fideStore        *fide.Store
 	lichessStore     *lichess.Store
+	chesscomStore    *chesscom.Store
 	store            db.Store
 	wg               sync.WaitGroup
 	validator        *validator.Validate
@@ -73,12 +75,13 @@ func main() {
 	slog.Info("database connection pool established")
 
 	app := &application{
-		config:       cfg,
-		fideStore:    &fide.Store{DB: conn},
-		lichessStore: &lichess.Store{DB: conn},
-		store:        db.NewStore(conn),
-		validator:    validator.New(),
-		nextsms:      nextsms.New(cfg.NextSmS.Username, cfg.NextSmS.Password),
+		config:        cfg,
+		fideStore:     &fide.Store{DB: conn},
+		lichessStore:  lichess.NewStore(conn),
+		chesscomStore: chesscom.NewStore(conn),
+		store:         db.NewStore(conn),
+		validator:     validator.New(),
+		nextsms:       nextsms.New(cfg.NextSmS.Username, cfg.NextSmS.Password),
 	}
 
 	err = app.serve()

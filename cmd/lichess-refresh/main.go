@@ -38,7 +38,7 @@ func main() {
 	defer conn.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	store, client := &lichess.Store{DB: conn}, lichess.NewClient(token)
+	store, client := lichess.NewStore(conn), lichess.NewClient(token)
 	for {
 		attempt, cancel := context.WithTimeout(ctx, 5*time.Minute)
 		updated, err := store.Refresh(attempt, time.Now().UTC(), *force, client.Collect)
