@@ -10,6 +10,7 @@ import (
 	"api.swahilichess.com/config"
 	"api.swahilichess.com/internal/chesscom"
 	db "api.swahilichess.com/internal/db/sqlc"
+	"api.swahilichess.com/internal/events"
 	"api.swahilichess.com/internal/fide"
 	"api.swahilichess.com/internal/lichess"
 	"api.swahilichess.com/internal/nextsms"
@@ -30,6 +31,7 @@ type application struct {
 	fideStore        *fide.Store
 	lichessStore     *lichess.Store
 	chesscomStore    *chesscom.Store
+	eventsStore      *events.Store
 	store            db.Store
 	wg               sync.WaitGroup
 	validator        *validator.Validate
@@ -79,6 +81,7 @@ func main() {
 		fideStore:     &fide.Store{DB: conn},
 		lichessStore:  lichess.NewStore(conn),
 		chesscomStore: chesscom.NewStore(conn),
+		eventsStore:   events.NewStore(conn),
 		store:         db.NewStore(conn),
 		validator:     validator.New(),
 		nextsms:       nextsms.New(cfg.NextSmS.Username, cfg.NextSmS.Password),

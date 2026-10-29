@@ -78,6 +78,18 @@ Four requests run at a time. HTTP 429, server errors and network failures retry 
 
 `GET /chesscom/ratings` only reads PostgreSQL. It returns `provider`, `country`, `fetchedAt`, `stale`, `players` with `id` (lowercase username), `name`, `playerId`, optional `title` and `ratings` such as `{ "value": 1206 }`, and `source` counts for listed, previously known, checked, closed, moved, missing, saved and unranked accounts. A category without games is omitted. `stale` is true after a failed run or when the snapshot is more than two days old. With no snapshot it returns HTTP 503.
 
+## Calendar events
+
+`cmd/events-refresh` collects online tournaments for the website calendar every 15 minutes, because clubs create Lichess tournaments shortly before play:
+
+```sh
+go run ./cmd/events-refresh -watch
+```
+
+It reads the Arena and Swiss feeds of each recognized club in `config/clubs.json`, embedded at build time, and Lichess's current tournaments from `/api/tournament`, keeping those created by Lichess in standard chess or Chess960 from 1+0 to 15+10, plus one-off events such as the Titled Arena. Club tournaments from the last year are kept; finished official ones are dropped. Requests run one at a time, and any failure keeps the previous snapshot. Apply `db/migrations/000005_events_snapshot.up.sql` once to an existing database.
+
+`GET /events` only reads PostgreSQL. It returns `fetchedAt`, `stale`, `clubs`, and `events` with `id` (`lichess-{arena|swiss}-{id}`), `origin` (`club` or `official`), `clubs`, `name`, `url`, `startsAt`, optional `finishesAt`, `status` (`upcoming`, `ongoing`, `finished`), `variant`, `speed`, `clock` in seconds, `rated`, optional `rounds` and Lichess `schedule`. `stale` is true after a failed run or when the snapshot is more than an hour old. With no snapshot it returns HTTP 503.
+
 ## Checks
 
 ```sh

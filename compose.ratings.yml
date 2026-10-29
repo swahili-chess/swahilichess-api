@@ -14,6 +14,7 @@ services:
       - ./db/migrations/000002_fide_snapshot.up.sql:/docker-entrypoint-initdb.d/002.sql:ro
       - ./db/migrations/000003_lichess_snapshot.up.sql:/docker-entrypoint-initdb.d/003.sql:ro
       - ./db/migrations/000004_chesscom_snapshot.up.sql:/docker-entrypoint-initdb.d/004.sql:ro
+      - ./db/migrations/000005_events_snapshot.up.sql:/docker-entrypoint-initdb.d/005.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U chess -d chess_ratings"]
       interval: 2s
