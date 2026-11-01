@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
- 
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -15,48 +15,76 @@ jobs:
       uses: actions/setup-go@v3
       with:
         go-version: 1.22.4
-      
+
     - name: Test
       run: go test -v ./...
-      
-    - name: Build
-      run: CGO_ENABLED=0 go build -v -o api ./cmd/api
+
+    - name: Build the API and the four collectors
+      run: |
+        mkdir -p dist
+        for cmd in api fide-refresh lichess-refresh chesscom-refresh events-refresh; do
+          CGO_ENABLED=0 go build -v -o dist/$cmd ./cmd/$cmd
+        done
+        cp deploy/systemd/*.service dist/
 
     - uses: actions/upload-artifact@v4
       with:
           name: sw-artifact
-          path: ./api
+          path: dist/
 
   deploy:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
       - uses: actions/download-artifact@v4
         with:
           name: sw-artifact
-      - name: Deploy to server
+          path: dist
+
+      - name: Copy binaries and service files to the server
         uses: appleboy/scp-action@master
         with:
            host: ${{ secrets.HOST }}
            username: ${{ secrets.USERNAME }}
            password: ${{ secrets.PASSWORD }}
            port: ${{ secrets.PORT }}
-           source: ./api
+           source: dist/*
+           strip_components: 1
            target: "/home/${{ secrets.USERNAME }}/chess/swahilichess-api"
 
-      - name: Start SwahiliChess API service and Reload Nginx
+      - name: Restart the API and collectors, and reload Nginx
         uses: appleboy/ssh-action@master
+        env:
+           SUDO_PASSWORD: ${{ secrets.PASSWORD }}
         with:
            host: ${{ secrets.HOST }}
            username: ${{ secrets.USERNAME }}
            password: ${{ secrets.PASSWORD }}
            port: ${{ secrets.PORT }}
+           envs: SUDO_PASSWORD
            script: |
+               set -e
+               as_root() { printf '%s\n' "$SUDO_PASSWORD" | sudo -S -p '' "$@"; }
                cd /home/${{ secrets.USERNAME }}/chess/swahilichess-api
-               chmod +x api
-               echo ${{ secrets.PASSWORD }} | sudo -S systemctl stop swahilichess-api.service 
-               echo ${{ secrets.PASSWORD }} | sudo -S systemctl start swahilichess-api.service
-               echo ${{ secrets.PASSWORD }} | sudo -S systemctl reload nginx
+               chmod +x api fide-refresh lichess-refresh chesscom-refresh events-refresh
 
- 
+               as_root systemctl stop swahilichess-api.service
+               as_root systemctl start swahilichess-api.service
+
+               # The collectors need /etc/swahilichess/api.env, created once by hand.
+               # See docs/server-setup.md in the website repository.
+               if ! as_root test -f /etc/swahilichess/api.env; then
+                 echo "Collectors not started: /etc/swahilichess/api.env is missing."
+                 exit 1
+               fi
+               for unit in swahilichess-*-refresh.service; do
+                 sed "s|__USER__|${{ secrets.USERNAME }}|g" "$unit" > "/tmp/$unit"
+                 as_root install -m 644 "/tmp/$unit" "/etc/systemd/system/$unit"
+                 rm "/tmp/$unit"
+               done
+               as_root systemctl daemon-reload
+               for unit in swahilichess-*-refresh.service; do
+                 as_root systemctl enable "$unit"
+                 as_root systemctl restart "$unit"
+               done
+               as_root systemctl reload nginx

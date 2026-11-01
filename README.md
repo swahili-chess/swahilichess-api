@@ -35,7 +35,7 @@ To fetch a same-month correction manually:
 go run ./cmd/fide-refresh -force
 ```
 
-`-force` cannot be combined with `-watch`. It does not bypass parser validation. No scheduler or production deployment is configured by this local checkpoint.
+`-force` cannot be combined with `-watch`. It does not bypass parser validation. In production each collector runs with `-watch` as a systemd service from `deploy/systemd/`, installed by the deploy workflow; see the website repository's `docs/server-setup.md`.
 
 ## Snapshot contract
 

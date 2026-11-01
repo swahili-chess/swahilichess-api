@@ -1,0 +1,21 @@
+# Installed by .github/workflows/deploy.yml, which replaces __USER__ with the
+# deploy user. Settings come from /etc/swahilichess/api.env; see docs/server-setup.md.
+[Unit]
+Description=chess.tz FIDE ratings collector
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+EnvironmentFile=/etc/swahilichess/api.env
+ExecStart=/home/__USER__/chess/swahilichess-api/fide-refresh -watch
+Restart=always
+RestartSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target
