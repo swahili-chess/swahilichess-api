@@ -19,6 +19,27 @@ type entry struct {
 	WomanTitle string  `xml:"w_title"`
 	Rating     *string `xml:"rating"`
 	Flag       *string `xml:"flag"`
+	Birthday   string  `xml:"birthday"`
+	Sex        string  `xml:"sex"`
+}
+
+// birthYear keeps FIDE's published birth year. Missing or implausible values are left empty
+// rather than failing the import.
+func birthYear(raw string) int {
+	year, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || year < 1900 || year > 2100 {
+		return 0
+	}
+	return year
+}
+
+// sex keeps FIDE's M or F code and leaves anything else empty.
+func sex(raw string) string {
+	value := strings.ToUpper(strings.TrimSpace(raw))
+	if value != "M" && value != "F" {
+		return ""
+	}
+	return value
 }
 
 // Parse reads the complete archive, including the closing root and ZIP checksum.
@@ -85,7 +106,7 @@ func Parse(r io.Reader, category string) ([]Player, Source, error) {
 			if title == "" {
 				title = strings.ToUpper(strings.TrimSpace(p.WomanTitle))
 			}
-			players = append(players, Player{Inactive: strings.Contains(flag, "i"), ID: p.ID, Name: p.Name, Title: title, Ratings: map[string]*Rating{category: {Value: value}}})
+			players = append(players, Player{Inactive: strings.Contains(flag, "i"), ID: p.ID, Name: p.Name, Title: title, BirthYear: birthYear(p.Birthday), Sex: sex(p.Sex), Ratings: map[string]*Rating{category: {Value: value}}})
 			stats.Rated++
 		case xml.EndElement:
 			if t.Name.Local != "playerslist" || closed {

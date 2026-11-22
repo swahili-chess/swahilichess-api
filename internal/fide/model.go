@@ -10,11 +10,14 @@ type Rating struct {
 
 type Player struct {
 	// Archive activity is retained for eligibility decisions, not exposed as a player-wide API flag.
-	Inactive bool               `json:"-"`
-	ID       string             `json:"id"`
-	Name     string             `json:"name"`
-	Title    string             `json:"title,omitempty"`
-	Ratings  map[string]*Rating `json:"ratings"`
+	Inactive bool   `json:"-"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Title    string `json:"title,omitempty"`
+	// Birth year and sex are saved in the snapshot but removed by Public before the API responds.
+	BirthYear int                `json:"birthYear,omitempty"`
+	Sex       string             `json:"sex,omitempty"`
+	Ratings   map[string]*Rating `json:"ratings"`
 }
 
 type Source struct {
@@ -40,6 +43,17 @@ type Snapshot struct {
 type Response struct {
 	Snapshot
 	Stale bool `json:"stale"`
+}
+
+// Public returns a copy without birth years or sex, for the public leaderboard.
+func (r Response) Public() Response {
+	players := make([]Player, len(r.Players))
+	for i, player := range r.Players {
+		player.BirthYear, player.Sex = 0, ""
+		players[i] = player
+	}
+	r.Players = players
+	return r
 }
 
 func month(t time.Time) string { return t.UTC().Format("2006-01") }

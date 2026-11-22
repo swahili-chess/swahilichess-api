@@ -61,3 +61,34 @@ func TestMonthlySchedule(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestParseBirthYearAndSex(t *testing.T) {
+	person := func(id, birthday, sex string) string {
+		return strings.Replace(record(id, "TAN", "2000", ""), "<games>", "<birthday>"+birthday+"</birthday><sex>"+sex+"</sex><games>", 1)
+	}
+	x := `<playerslist>` + person("1", "1990", "M") + person("2", " 2004 ", "f") + person("3", "0000", "X") + person("4", "", "") + record("5", "TAN", "1900", "") + `</playerslist>`
+	players, _, err := Parse(strings.NewReader(x), "standard")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []struct {
+		year int
+		sex  string
+	}{{1990, "M"}, {2004, "F"}, {0, ""}, {0, ""}, {0, ""}}
+	for i, w := range want {
+		if players[i].BirthYear != w.year || players[i].Sex != w.sex {
+			t.Fatalf("player %d: got %d %q, want %d %q", i+1, players[i].BirthYear, players[i].Sex, w.year, w.sex)
+		}
+	}
+}
+
+func TestPublicOmitsBirthYearAndSex(t *testing.T) {
+	r := Response{Snapshot: Snapshot{Players: []Player{{ID: "1", Name: "A", BirthYear: 1990, Sex: "M", Ratings: map[string]*Rating{}}}}}
+	public := r.Public()
+	if public.Players[0].BirthYear != 0 || public.Players[0].Sex != "" {
+		t.Fatal("public response exposed birth year or sex")
+	}
+	if r.Players[0].BirthYear != 1990 || r.Players[0].Sex != "M" {
+		t.Fatal("Public changed the saved snapshot")
+	}
+}

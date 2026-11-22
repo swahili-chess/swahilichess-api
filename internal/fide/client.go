@@ -116,6 +116,12 @@ func (c *Client) Collect(ctx context.Context, now time.Time) (Snapshot, error) {
 					return s, fmt.Errorf("conflicting player identity %s", player.ID)
 				}
 				existing.Ratings[category] = player.Ratings[category]
+				if existing.BirthYear == 0 {
+					existing.BirthYear = player.BirthYear
+				}
+				if existing.Sex == "" {
+					existing.Sex = player.Sex
+				}
 				merged[player.ID] = existing
 			} else {
 				merged[player.ID] = player

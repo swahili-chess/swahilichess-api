@@ -18,5 +18,5 @@ func (app *application) fideLeaderboardHandler(c echo.Context) error {
 		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "Ratings are unavailable"})
 	}
 	c.Response().Header().Set("Cache-Control", "public, max-age=60")
-	return c.JSON(http.StatusOK, snapshot)
+	return c.JSON(http.StatusOK, snapshot.Public())
 }
