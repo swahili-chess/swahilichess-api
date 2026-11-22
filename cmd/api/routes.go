@@ -23,8 +23,12 @@ func (app *application) routes() *echo.Echo {
 	e.Use(middleware.CORSWithConfig(DefaultCORSConfig))
 
 	e.GET("/ping", app.pingHandler)
+	e.GET("/fide/leaderboard", app.fideLeaderboardHandler)
 	e.POST("/login", app.createAuthTokenHandler)
 	e.GET("/lichess/leaderboard", app.leaderboardHandler)
+	e.GET("/lichess/ratings", app.lichessRatingsHandler)
+	e.GET("/chesscom/ratings", app.chesscomRatingsHandler)
+	e.GET("/events", app.eventsHandler)
 
 	// for chessbot
 	b := e.Group("/bot")

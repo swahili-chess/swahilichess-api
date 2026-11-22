@@ -8,7 +8,11 @@ import (
 	"time"
 
 	"api.swahilichess.com/config"
+	"api.swahilichess.com/internal/chesscom"
 	db "api.swahilichess.com/internal/db/sqlc"
+	"api.swahilichess.com/internal/events"
+	"api.swahilichess.com/internal/fide"
+	"api.swahilichess.com/internal/lichess"
 	"api.swahilichess.com/internal/nextsms"
 	"github.com/go-playground/validator/v10"
 	_ "github.com/lib/pq"
@@ -24,6 +28,10 @@ type leaderboardCache struct {
 
 type application struct {
 	config           config.Config
+	fideStore        *fide.Store
+	lichessStore     *lichess.Store
+	chesscomStore    *chesscom.Store
+	eventsStore      *events.Store
 	store            db.Store
 	wg               sync.WaitGroup
 	validator        *validator.Validate
@@ -43,6 +51,7 @@ func init() {
 func main() {
 	var cfg config.Config
 
+	flag.StringVar(&cfg.HOST, "host", os.Getenv("HOST"), "API bind host; empty listens on all interfaces")
 	flag.StringVar(&cfg.PORT, "port", os.Getenv("PORT"), "API server port")
 	flag.StringVar(&cfg.ENV, "env", os.Getenv("ENV_STAGE"), "Environment (development|Staging|production")
 	flag.StringVar(&cfg.DB.DSN, "db-dsn", os.Getenv("SW_DB_DSN"), "PostgreSQL DSN")
@@ -68,10 +77,14 @@ func main() {
 	slog.Info("database connection pool established")
 
 	app := &application{
-		config:    cfg,
-		store:     db.NewStore(conn),
-		validator: validator.New(),
-		nextsms:   nextsms.New(cfg.NextSmS.Username, cfg.NextSmS.Password),
+		config:        cfg,
+		fideStore:     &fide.Store{DB: conn},
+		lichessStore:  lichess.NewStore(conn),
+		chesscomStore: chesscom.NewStore(conn),
+		eventsStore:   events.NewStore(conn),
+		store:         db.NewStore(conn),
+		validator:     validator.New(),
+		nextsms:       nextsms.New(cfg.NextSmS.Username, cfg.NextSmS.Password),
 	}
 
 	err = app.serve()
