@@ -72,7 +72,6 @@ jobs:
                as_root systemctl start swahilichess-api.service
 
                # The collectors need /etc/swahilichess/api.env, created once by hand.
-               # See docs/server-setup.md in the website repository.
                if ! as_root test -f /etc/swahilichess/api.env; then
                  echo "Collectors not started: /etc/swahilichess/api.env is missing."
                  exit 1
