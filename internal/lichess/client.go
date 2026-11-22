@@ -1,7 +1,6 @@
 package lichess
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -37,31 +36,28 @@ type user struct {
 	Perfs        map[string]perf `json:"perfs"`
 }
 
+// Roster returns the Lichess IDs to rank. Production reads the chessbot's lichess table,
+// so no Lichess token is needed: the batch users endpoint is public.
+type Roster func(context.Context) ([]string, error)
+
 type Client struct {
 	HTTP    *http.Client
 	BaseURL string
-	// Token needs the team:read scope while the team's member list is private.
-	Token string
+	Roster  Roster
 }
 
-func NewClient(token string) *Client {
-	return &Client{HTTP: &http.Client{Timeout: time.Minute}, BaseURL: defaultBaseURL, Token: token}
+func NewClient(roster Roster) *Client {
+	return &Client{HTTP: &http.Client{Timeout: time.Minute}, BaseURL: defaultBaseURL, Roster: roster}
 }
 
 func (c *Client) do(req *http.Request, limit int64) ([]byte, error) {
 	req.Header.Set("User-Agent", "chess.tz-ratings/1.0")
-	if c.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.Token)
-	}
 	res, err := c.HTTP.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer res.Body.Close()
-	switch {
-	case res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden:
-		return nil, fmt.Errorf("Lichess returned HTTP %d; set LICHESS_TOKEN with the team:read scope", res.StatusCode)
-	case res.StatusCode != http.StatusOK:
+	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("Lichess returned HTTP %d", res.StatusCode)
 	}
 	data, err := io.ReadAll(io.LimitReader(res.Body, limit+1))
@@ -74,45 +70,32 @@ func (c *Client) do(req *http.Request, limit int64) ([]byte, error) {
 	return data, nil
 }
 
-// members reads the complete team roster. Lichess streams it as ndjson.
-func (c *Client) members(ctx context.Context) ([]string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/team/"+Team+"/users", nil)
-	if err != nil {
-		return nil, err
+// members reads and normalizes the roster. The bot writes these rows, so malformed IDs are
+// skipped and counted rather than blocking every refresh; duplicates collapse to one.
+func (c *Client) members(ctx context.Context) (ids []string, skipped int, err error) {
+	if c.Roster == nil {
+		return nil, 0, fmt.Errorf("no Lichess roster configured")
 	}
-	req.Header.Set("Accept", "application/x-ndjson")
-	data, err := c.do(req, 8<<20)
+	raw, err := c.Roster(ctx)
 	if err != nil {
-		return nil, err
+		return nil, 0, fmt.Errorf("read Lichess roster: %w", err)
 	}
-	ids := []string{}
 	seen := map[string]bool{}
-	scanner := bufio.NewScanner(strings.NewReader(string(data)))
-	scanner.Buffer(make([]byte, 64<<10), 1<<20)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
+	for _, id := range raw {
+		id = strings.ToLower(strings.TrimSpace(id))
+		if !userID.MatchString(id) {
+			skipped++
 			continue
 		}
-		var member struct {
-			ID string `json:"id"`
+		if !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
 		}
-		if err = json.Unmarshal([]byte(line), &member); err != nil {
-			return nil, fmt.Errorf("invalid team member record: %w", err)
-		}
-		if !userID.MatchString(member.ID) || seen[member.ID] {
-			return nil, fmt.Errorf("invalid or duplicate team member ID")
-		}
-		seen[member.ID] = true
-		ids = append(ids, member.ID)
-	}
-	if err = scanner.Err(); err != nil {
-		return nil, err
 	}
 	if len(ids) == 0 || len(ids) > maxMembers {
-		return nil, fmt.Errorf("unexpected team size %d", len(ids))
+		return nil, skipped, fmt.Errorf("unexpected roster size %d", len(ids))
 	}
-	return ids, nil
+	return ids, skipped, nil
 }
 
 func (c *Client) users(ctx context.Context, ids []string) ([]user, error) {
@@ -132,15 +115,15 @@ func (c *Client) users(ctx context.Context, ids []string) ([]user, error) {
 	return users, nil
 }
 
-// Collect reads the team roster, then current ratings in serialized batches.
+// Collect reads the roster, then current ratings in serialized batches.
 // Any failed request fails the whole collection so a partial roster is never saved.
 func (c *Client) Collect(ctx context.Context, now time.Time) (Snapshot, error) {
 	s := Snapshot{Provider: "lichess", Team: Team, Players: []Player{}, Source: Source{Team: Team}}
-	ids, err := c.members(ctx)
+	ids, skipped, err := c.members(ctx)
 	if err != nil {
 		return s, err
 	}
-	s.Source.Members = len(ids)
+	s.Source.Members = len(ids) + skipped
 	requested := map[string]bool{}
 	for _, id := range ids {
 		requested[id] = true
@@ -168,10 +151,10 @@ func (c *Client) Collect(ctx context.Context, now time.Time) (Snapshot, error) {
 			}
 		}
 	}
-	s.Source.Missing = len(ids) - len(found)
+	s.Source.Missing = len(ids) - len(found) + skipped
 	s.Source.Players = len(s.Players)
 	if len(s.Players) == 0 {
-		return s, fmt.Errorf("no eligible team members")
+		return s, fmt.Errorf("no eligible roster members")
 	}
 	sort.Slice(s.Players, func(i, j int) bool { return s.Players[i].ID < s.Players[j].ID })
 	s.FetchedAt = now.UTC()

@@ -20,16 +20,10 @@ func respond(status int, body string) (*http.Response, error) {
 
 func fakeClient(members []string, users func([]string) string) (*Client, *[]int) {
 	batches := []int{}
-	c := &Client{BaseURL: "https://lichess.test", Token: "test-token", HTTP: &http.Client{Transport: transport(func(req *http.Request) (*http.Response, error) {
-		if req.Header.Get("Authorization") != "Bearer test-token" {
-			return respond(401, "")
-		}
-		if req.Method == http.MethodGet && req.URL.Path == "/api/team/"+Team+"/users" {
-			lines := []string{}
-			for _, id := range members {
-				lines = append(lines, fmt.Sprintf(`{"id":%q,"name":%q}`, id, id))
-			}
-			return respond(200, strings.Join(lines, "\n")+"\n")
+	roster := func(context.Context) ([]string, error) { return members, nil }
+	c := &Client{BaseURL: "https://lichess.test", Roster: roster, HTTP: &http.Client{Transport: transport(func(req *http.Request) (*http.Response, error) {
+		if req.Header.Get("Authorization") != "" {
+			return respond(400, "the public users endpoint must not receive credentials")
 		}
 		if req.Method == http.MethodPost && req.URL.Path == "/api/users" {
 			body, _ := io.ReadAll(req.Body)
@@ -106,22 +100,43 @@ func TestCollectRejectsInvalidResponses(t *testing.T) {
 	cases["no eligible players"], _ = fakeClient([]string{"alice"}, func([]string) string {
 		return `[{"id":"alice","username":"alice","disabled":true}]`
 	})
-	cases["empty team"], _ = fakeClient(nil, func([]string) string { return `[]` })
-	cases["invalid member ID"], _ = fakeClient([]string{"../admin"}, func([]string) string { return `[]` })
-	missingToken, _ := fakeClient([]string{"alice"}, func([]string) string { return `[]` })
-	missingToken.Token = ""
-	cases["missing token"] = missingToken
+	cases["empty roster"], _ = fakeClient(nil, func([]string) string { return `[]` })
+	cases["only invalid IDs"], _ = fakeClient([]string{"../admin"}, func([]string) string { return `[]` })
+	rosterFailure, _ := fakeClient([]string{"alice"}, func([]string) string { return `[]` })
+	rosterFailure.Roster = func(context.Context) ([]string, error) { return nil, fmt.Errorf("database down") }
+	cases["roster failure"] = rosterFailure
+	noRoster, _ := fakeClient([]string{"alice"}, func([]string) string { return `[]` })
+	noRoster.Roster = nil
+	cases["no roster"] = noRoster
 	for name, c := range cases {
 		if _, err := c.Collect(context.Background(), time.Now()); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
 	}
 	for _, status := range []int{429, 500} {
-		c := &Client{BaseURL: "https://lichess.test", HTTP: &http.Client{Transport: transport(func(*http.Request) (*http.Response, error) {
+		c := &Client{BaseURL: "https://lichess.test", Roster: func(context.Context) ([]string, error) { return []string{"alice"}, nil }, HTTP: &http.Client{Transport: transport(func(*http.Request) (*http.Response, error) {
 			return respond(status, "failure")
 		})}}
 		if _, err := c.Collect(context.Background(), time.Now()); err == nil {
 			t.Fatalf("accepted HTTP %d", status)
 		}
+	}
+}
+
+func TestCollectNormalizesBotRoster(t *testing.T) {
+	var requested []string
+	c, _ := fakeClient([]string{"Alice", " bob ", "alice", "../admin", ""}, func(ids []string) string {
+		requested = ids
+		return `[{"id":"alice","username":"Alice","perfs":{"blitz":{"games":3,"rating":1700}}},{"id":"bob","username":"bob","perfs":{"blitz":{"games":3,"rating":1600}}}]`
+	})
+	s, err := c.Collect(context.Background(), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(requested, ",") != "alice,bob" {
+		t.Fatalf("requested %v, want lowercase IDs without duplicates", requested)
+	}
+	if s.Source.Members != 4 || s.Source.Missing != 2 || s.Source.Players != 2 {
+		t.Fatalf("unexpected source counts %+v", s.Source)
 	}
 }

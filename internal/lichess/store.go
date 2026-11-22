@@ -17,6 +17,27 @@ func NewStore(db *sql.DB) *Store {
 	return &Store{snapshot.Store{DB: db, Table: "lichess_snapshot", LockID: 73102602, Success: refreshInterval, Failure: refreshInterval}}
 }
 
+// BotRoster reads the Lichess IDs the chessbot keeps in its lichess table.
+// The table belongs to the bot; this only reads it.
+func BotRoster(db *sql.DB) Roster {
+	return func(ctx context.Context) ([]string, error) {
+		rows, err := db.QueryContext(ctx, `SELECT lichess_id FROM lichess`)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		ids := []string{}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				return nil, err
+			}
+			ids = append(ids, id)
+		}
+		return ids, rows.Err()
+	}
+}
+
 func (s *Store) Read(ctx context.Context, now time.Time) (Response, error) {
 	payload, failed, err := s.s.Read(ctx)
 	if err != nil {

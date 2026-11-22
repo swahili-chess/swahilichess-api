@@ -88,3 +88,44 @@ func TestSnapshotPersistence(t *testing.T) {
 		t.Fatal("a snapshot older than three hours should be stale")
 	}
 }
+
+func TestBotRosterReadsChessbotTable(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("set TEST_DATABASE_URL to an isolated local PostgreSQL database")
+	}
+	admin, err := sql.Open("postgres", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close()
+	schema := fmt.Sprintf("lichess_roster_test_%d", time.Now().UnixNano())
+	if _, err = admin.Exec("CREATE SCHEMA " + schema); err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Exec("DROP SCHEMA " + schema + " CASCADE")
+	u, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := u.Query()
+	q.Set("search_path", schema)
+	u.RawQuery = q.Encode()
+	db, err := sql.Open("postgres", u.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	// Same shape as the bot's table in 000001_create_initial_tables.up.sql.
+	if _, err = db.Exec(`CREATE TABLE lichess (id SERIAL PRIMARY KEY, lichess_id TEXT UNIQUE NOT NULL, username TEXT UNIQUE NOT NULL, created_at TIMESTAMP(0) NOT NULL DEFAULT NOW());
+		INSERT INTO lichess (lichess_id, username) VALUES ('alice', 'Alice'), ('bob', 'Bob')`); err != nil {
+		t.Fatal(err)
+	}
+	ids, err := BotRoster(db)(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 2 {
+		t.Fatalf("got %v, want the two bot rows", ids)
+	}
+}

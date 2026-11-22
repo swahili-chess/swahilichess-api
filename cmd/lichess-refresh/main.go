@@ -24,11 +24,6 @@ func main() {
 		slog.Error("use -force only for a single refresh")
 		os.Exit(1)
 	}
-	// Read the token from the environment only, so it never appears in process listings.
-	token := os.Getenv("LICHESS_TOKEN")
-	if token == "" {
-		slog.Warn("LICHESS_TOKEN is not set; a private team roster cannot be read")
-	}
 	cfg.DB.MaxOpenConns, cfg.DB.MaxIdleConns, cfg.DB.MaxIdleTime = 2, 2, "5m"
 	conn, err := config.OpenDB(cfg)
 	if err != nil {
@@ -38,7 +33,7 @@ func main() {
 	defer conn.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	store, client := lichess.NewStore(conn), lichess.NewClient(token)
+	store, client := lichess.NewStore(conn), lichess.NewClient(lichess.BotRoster(conn))
 	for {
 		attempt, cancel := context.WithTimeout(ctx, 5*time.Minute)
 		updated, err := store.Refresh(attempt, time.Now().UTC(), *force, client.Collect)
