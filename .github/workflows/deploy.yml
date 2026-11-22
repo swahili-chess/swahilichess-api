@@ -25,7 +25,6 @@ jobs:
         for cmd in api fide-refresh lichess-refresh chesscom-refresh events-refresh; do
           CGO_ENABLED=0 go build -v -o dist/$cmd ./cmd/$cmd
         done
-        cp deploy/systemd/*.service dist/
 
     - uses: actions/upload-artifact@v4
       with:
@@ -71,19 +70,12 @@ jobs:
                as_root systemctl stop swahilichess-api.service
                as_root systemctl start swahilichess-api.service
 
-               # The collectors need /etc/swahilichess/api.env, created once by hand.
+               # The collector services and /etc/swahilichess/api.env are set up once by hand.
                if ! as_root test -f /etc/swahilichess/api.env; then
                  echo "Collectors not started: /etc/swahilichess/api.env is missing."
                  exit 1
                fi
-               for unit in swahilichess-*-refresh.service; do
-                 sed "s|__USER__|${{ secrets.USERNAME }}|g" "$unit" > "/tmp/$unit"
-                 as_root install -m 644 "/tmp/$unit" "/etc/systemd/system/$unit"
-                 rm "/tmp/$unit"
-               done
-               as_root systemctl daemon-reload
-               for unit in swahilichess-*-refresh.service; do
-                 as_root systemctl enable "$unit"
-                 as_root systemctl restart "$unit"
+               for unit in fide lichess chesscom events; do
+                 as_root systemctl restart "swahilichess-$unit-refresh.service"
                done
                as_root systemctl reload nginx
